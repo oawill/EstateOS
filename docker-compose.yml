@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: estateos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: estateos
+      POSTGRES_PASSWORD: estateos
+      POSTGRES_DB: estateos
+    ports:
+      - "5432:5432"
+    volumes:
+      - estateos-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  estateos-postgres-data:

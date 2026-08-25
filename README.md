@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EstateOS
 
-## Getting Started
+The operating system for modern Nigerian estates. Multi-tenant SaaS for estate management: billing, payments, visitors, security, maintenance, utilities, and announcements — one platform per estate, isolated by tenant.
 
-First, run the development server:
+This is **Phase 1**: architecture, auth, multi-tenancy, RBAC, estate onboarding, and properties/residents management. Billing, payments, visitors, maintenance, and utilities are later phases (see [Roadmap](#roadmap)).
+
+## Stack
+
+- **Next.js 16** (App Router, TypeScript, Turbopack)
+- **Tailwind CSS 4**
+- **PostgreSQL** via **Prisma 7** (driver-adapter model — see `src/server/db/client.ts`)
+- **Auth.js v5** (Credentials provider, JWT sessions)
+- **Vitest** for unit tests
+
+## Local setup
+
+### 1. Database
+
+You need a local PostgreSQL instance (native install or Docker). Create a dedicated role and database:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+psql -U postgres -c "CREATE ROLE estateos WITH LOGIN PASSWORD 'yourpassword' CREATEDB; CREATE DATABASE estateos OWNER estateos;"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`CREATEDB` is required because `prisma migrate dev` creates a temporary shadow database to compute migrations.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+If you'd rather use Docker, a `docker-compose.yml` is included:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+docker compose up -d
+```
 
-## Learn More
+### 2. Environment
 
-To learn more about Next.js, take a look at the following resources:
+Copy `.env.example` to `.env` and fill in `DATABASE_URL` (URL-encode any special characters in your password, e.g. `@` → `%40`) and generate an `AUTH_SECRET`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cp .env.example .env
+npx auth secret
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Install, migrate, seed
 
-## Deploy on Vercel
+```bash
+pnpm install
+pnpm db:migrate
+pnpm db:seed
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The seed script creates:
+- A platform admin: `admin@estateos.ng`
+- **Greenview Gardens Estate** (`greenview-gardens`) with an admin, finance, facility manager, security, and one resident (with a vehicle) — all at `@greenview.ng`
+- **Palm Court Residences** (`palm-court`) with its own admin, used to verify tenant isolation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+All seeded users share the password: `password123`
+
+### 4. Run
+
+```bash
+pnpm dev
+```
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `pnpm dev` / `pnpm build` / `pnpm start` | Next.js dev/build/start |
+| `pnpm lint` | ESLint |
+| `pnpm test` | Vitest unit tests (no DB required — tenant scoping and RBAC are tested against mocks) |
+| `pnpm db:migrate` | Run Prisma migrations |
+| `pnpm db:seed` | Seed demo data |
+| `pnpm db:studio` | Open Prisma Studio |
+
+## Architecture notes
+
+- **Multi-tenancy**: shared database, `estateId` on every tenant-owned row. All reads/writes to tenant tables go through `scoped(estateId)` in `src/server/db/scoped.ts`, which injects `estateId` server-side into every query — it is structurally impossible to read or mutate another tenant's row through this API, regardless of client input. Platform-admin cross-tenant queries live only in `src/server/modules/platform/`.
+- **RBAC**: `src/server/auth/permissions.ts` is a static, in-code map from the 7 roles to permissions. `requireEstatePermission()` in `src/server/auth/guards.ts` is the single choke point every Server Action/page uses — enforced server-side, never trusting client-hidden UI.
+- **Auth**: Auth.js v5, Credentials provider, JWT sessions. Estate access is resolved fresh on every request from the URL's `estateSlug` + the caller's `EstateMember` row — a slug for an estate you're not a member of behaves identically to a slug that doesn't exist.
+- **Audit log**: every create/update on Estate, Property, Unit, Resident, Occupancy, Vehicle, Block/Street/Zone, and platform subscription-status changes writes an `AuditLog` row (actor, before/after JSON).
+
+## What's mocked or deferred (not built yet)
+
+- **Billing/payments** (Phase 2): charges, invoices, Paystack integration, receipts, finance dashboard, CSV import.
+- **Visitors & Gate Mode** (Phase 3): QR/PIN generation, security check-in/out.
+- **Maintenance & utilities** (Phase 3): tickets, vendor work orders, meter readings.
+- **Announcements & notifications** (Phase 3): the `notifications` table and multi-channel (WhatsApp/SMS/email) dispatch don't exist yet.
+- **Platform super-admin billing** (Phase 4): plans/pricing config, platform revenue.
+- **Landing page** (Phase 4).
+- **Phone/OTP login**: only email+password exists; the Credentials provider is structured so this is additive, not a rewrite.
+- **Rate limiting, upload hardening, CSP**: flagged as TODO — real work starts once Phase 2/3 introduce public forms and file uploads.
+
+## Roadmap
+
+1. ~~Foundation~~ — architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/units, residents. **(this phase)**
+2. Billing & payments — charges, invoices, Paystack, receipts, finance dashboard, CSV import.
+3. Visitors/Gate Mode, maintenance & vendor workflow, utilities, announcements/notifications.
+4. Platform super-admin portal (subscriptions/pricing), public landing page.

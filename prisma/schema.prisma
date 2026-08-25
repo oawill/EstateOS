@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  PLATFORM_SUPER_ADMIN
+  ESTATE_ADMIN
+  FINANCE
+  FACILITY_MANAGER
+  SECURITY
+  RESIDENT
+  VENDOR
+}
+
+enum PropertyType {
+  DETACHED_HOUSE
+  SEMI_DETACHED
+  TERRACE
+  FLAT_BLOCK
+  COMMERCIAL
+  LAND
+  OTHER
+}
+
+enum OccupancyRole {
+  OWNER
+  TENANT
+  HOUSEHOLD_MEMBER
+}
+
+enum OccupancyStatus {
+  VACANT
+  OCCUPIED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+// A User is an authenticatable identity. It may or may not be linked to a
+// Resident profile, and may hold EstateMember roles in one or more estates.
+model User {
+  id              String   @id @default(cuid())
+  email           String?  @unique
+  phone           String?  @unique
+  passwordHash    String?
+  name            String
+  isPlatformAdmin Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberships   EstateMember[]
+  residentLinks Resident[]
+  auditLogs     AuditLog[]     @relation("ActorUser")
+}
+
+// ---------------------------------------------------------------------------
+// Tenant root
+// ---------------------------------------------------------------------------
+
+model Estate {
+  id                 String             @id @default(cuid())
+  name               String
+  slug               String             @unique
+  logoUrl            String?
+  address            String?
+  city               String?
+  state              String?
+  contactEmail       String?
+  contactPhone       String?
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+  planId             String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  members    EstateMember[]
+  blocks     Block[]
+  streets    Street[]
+  zones      Zone[]
+  properties Property[]
+  residents  Resident[]
+  vehicles   Vehicle[]
+  auditLogs  AuditLog[]
+
+  @@index([subscriptionStatus])
+}
+
+// Grants a User a Role within a specific Estate. A user can belong to
+// multiple estates (e.g. a facility-management company staff member).
+model EstateMember {
+  id        String   @id @default(cuid())
+  estateId  String
+  userId    String
+  role      Role
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  estate Estate @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([estateId, userId, role])
+  @@index([estateId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Estate geography
+// ---------------------------------------------------------------------------
+
+model Block {
+  id        String   @id @default(cuid())
+  estateId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  estate     Estate     @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  properties Property[]
+
+  @@index([estateId])
+}
+
+model Street {
+  id        String   @id @default(cuid())
+  estateId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  estate     Estate     @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  properties Property[]
+
+  @@index([estateId])
+}
+
+model Zone {
+  id        String   @id @default(cuid())
+  estateId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  estate     Estate     @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  properties Property[]
+
+  @@index([estateId])
+}
+
+// ---------------------------------------------------------------------------
+// Properties & Units
+// ---------------------------------------------------------------------------
+
+// An addressable structure (a duplex, a block of flats, a standalone house).
+model Property {
+  id           String       @id @default(cuid())
+  estateId     String
+  blockId      String?
+  streetId     String?
+  zoneId       String?
+  addressLabel String
+  propertyType PropertyType
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  estate Estate  @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  block  Block?  @relation(fields: [blockId], references: [id])
+  street Street? @relation(fields: [streetId], references: [id])
+  zone   Zone?   @relation(fields: [zoneId], references: [id])
+  units  Unit[]
+
+  @@index([estateId])
+}
+
+// The billable / occupiable sub-entity. A standalone house still gets one
+// implicit Unit so billing and occupancy always attach to a Unit.
+model Unit {
+  id              String          @id @default(cuid())
+  propertyId      String
+  estateId        String
+  label           String
+  occupancyStatus OccupancyStatus @default(VACANT)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  property    Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  occupancies Occupancy[]
+
+  @@index([estateId])
+  @@index([propertyId])
+}
+
+// ---------------------------------------------------------------------------
+// Residents
+// ---------------------------------------------------------------------------
+
+// An estate-scoped profile. May or may not have a linked User (e.g. a
+// household member with no login yet).
+model Resident {
+  id                    String   @id @default(cuid())
+  estateId              String
+  userId                String?
+  firstName             String
+  lastName              String
+  email                 String?
+  phone                 String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  estate      Estate      @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  user        User?       @relation(fields: [userId], references: [id])
+  occupancies Occupancy[]
+  vehicles    Vehicle[]
+
+  @@index([estateId])
+  @@index([userId])
+}
+
+// History of which Resident occupies which Unit, and in what capacity.
+model Occupancy {
+  id          String        @id @default(cuid())
+  unitId      String
+  residentId  String
+  role        OccupancyRole
+  moveInDate  DateTime
+  moveOutDate DateTime?
+  isCurrent   Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+
+  unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([unitId])
+  @@index([residentId])
+}
+
+model Vehicle {
+  id          String   @id @default(cuid())
+  estateId    String
+  residentId  String
+  plateNumber String
+  make        String?
+  model       String?
+  color       String?
+  createdAt   DateTime @default(now())
+
+  estate   Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([estateId])
+  @@index([residentId])
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  estateId    String? // null for platform-level actions
+  actorUserId String?
+  action      String // e.g. "property.created", "invoice.amount_changed"
+  entityType  String
+  entityId    String
+  beforeJson  Json?
+  afterJson   Json?
+  createdAt   DateTime @default(now())
+
+  estate Estate? @relation(fields: [estateId], references: [id])
+  actor  User?   @relation("ActorUser", fields: [actorUserId], references: [id])
+
+  @@index([estateId])
+  @@index([entityType, entityId])
+}
