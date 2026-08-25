@@ -11,6 +11,7 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
     { href: "properties", label: "Properties" },
     { href: "residents", label: "Residents" },
     { href: "billing", label: "Billing" },
+    { href: "import", label: "Import" },
     { href: "settings", label: "Settings" },
   ],
   [Role.FINANCE]: [

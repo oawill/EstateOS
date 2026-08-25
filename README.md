@@ -2,7 +2,7 @@
 
 The operating system for modern Nigerian estates. Multi-tenant SaaS for estate management: billing, payments, visitors, security, maintenance, utilities, and announcements — one platform per estate, isolated by tenant.
 
-This is **Phase 1 + Phase 2**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, and the core billing/payments loop (charges → invoices → payment → receipt). Visitors, maintenance, utilities, and CSV import are later phases (see [Roadmap](#roadmap)).
+This is **Phase 1 + Phase 2 + CSV import**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, the core billing/payments loop (charges → invoices → payment → receipt), and bulk CSV import for properties and residents. Visitors, maintenance, and utilities are later phases (see [Roadmap](#roadmap)).
 
 ## Stack
 
@@ -84,11 +84,14 @@ pnpm dev
 - **Billing**: one invoice = one charge (no multi-charge bundling). Creating a `Charge` immediately resolves its target scope (entire estate / blocks / streets / property types / selected properties) into `Invoice` rows for each targeted unit's current resident — see `createChargeAndGenerateInvoices` in `src/server/modules/billing/service.ts`. Invoice/receipt numbers are atomic per-estate sequences (`src/server/modules/sequence.ts`), safe under concurrent creation via Postgres's row-lock on the `EstateSequence` unique index.
 - **Payments**: never trusted from the frontend. `applySuccessfulPayment()` is the single place a payment is ever marked successful — called only by the signature-verified Paystack webhook (`app/api/webhooks/paystack/route.ts`) or by Finance/Admin approving a manual bank-transfer record. It recomputes the invoice's status from the sum of all successful payments, issues a receipt, and writes an audit log, so both payment paths share identical behavior. Idempotent by design (`paystackReference` uniqueness + a status check) — proven in `src/server/modules/billing/__tests__/idempotency.integration.test.ts` against the real database.
 - **Audit log**: every create/update on Estate, Property, Unit, Resident, Occupancy, Vehicle, Block/Street/Zone, Charge, Payment, and platform subscription-status changes writes an `AuditLog` row (actor, before/after JSON).
+- **CSV import**: no file storage involved — a CSV is parsed client-side (`papaparse`) and the parsed rows travel through Server Actions as plain data. A **validate** action runs zod row-shape checks plus DB-backed checks (does this block/street/property exist? does this address already exist?) and returns every row annotated with its errors; the preview UI disables "Confirm Import" while any row has an error. **Confirm** re-validates from scratch server-side — the client's earlier pass is never trusted — then imports each row by calling the same `createProperty()` / `createResidentWithOccupancy()` / `addVehicle()` functions the manual "Add property"/"Add resident" forms use, so imported records get identical tenant scoping and audit logging for free. See `src/server/modules/imports/`.
 
 ## What's mocked or deferred (not built yet)
 
 - **Paystack live verification**: the initialize call and webhook handling are fully implemented (signature verification, idempotency), but need real Paystack test keys to exercise live — see `PAYSTACK_SECRET_KEY` above. Webhooks also can't reach `localhost`; use ngrok or Paystack's dashboard webhook-replay tool.
-- **CSV import** (follow-up to Phase 2): properties/residents/opening-balance bulk import.
+- **Outstanding-balances / opening-arrears CSV import**: deferred — importing historical arrears as invoices needs a design decision (a nullable `chargeId`, or an auto-created "Opening Balance" charge per import) that properties/residents import didn't need.
+- **Meter-information import**: nothing to import into yet — no utilities module.
+- **CSV import update-in-place**: a row colliding with an existing record (same address, etc.) is flagged as an error and skipped, never overwritten. No bulk-update mode in this pass.
 - **Visitors & Gate Mode** (Phase 3): QR/PIN generation, security check-in/out.
 - **Maintenance & utilities** (Phase 3): tickets, vendor work orders, meter readings.
 - **Announcements & notifications** (Phase 3): the `notifications` table and multi-channel (WhatsApp/SMS/email) dispatch don't exist yet.
@@ -101,6 +104,7 @@ pnpm dev
 ## Roadmap
 
 1. ~~Foundation~~ — architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/units, residents.
-2. ~~Billing & payments~~ — charges, invoice generation, Paystack + manual payments, receipts, finance dashboard. **(this phase)**
-3. CSV import, then visitors/Gate Mode, maintenance & vendor workflow, utilities, announcements/notifications.
-4. Platform super-admin portal (subscriptions/pricing), public landing page.
+2. ~~Billing & payments~~ — charges, invoice generation, Paystack + manual payments, receipts, finance dashboard.
+3. ~~CSV import~~ — bulk import for properties/units and residents/occupancy/vehicles. **(this phase)**
+4. Outstanding-balances import, then visitors/Gate Mode, maintenance & vendor workflow, utilities, announcements/notifications.
+5. Platform super-admin portal (subscriptions/pricing), public landing page.
