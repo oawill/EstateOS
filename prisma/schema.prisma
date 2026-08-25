@@ -49,6 +49,47 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+enum ChargeType {
+  SERVICE_CHARGE_ANNUAL
+  SERVICE_CHARGE_MONTHLY
+  SECURITY_LEVY
+  ELECTRICITY
+  WATER
+  DIESEL
+  INFRASTRUCTURE_LEVY
+  SPECIAL_ASSESSMENT
+  WASTE_COLLECTION
+  OTHER
+}
+
+enum ChargeTargetType {
+  ENTIRE_ESTATE
+  BLOCK
+  STREET
+  PROPERTY_TYPE
+  SELECTED_PROPERTIES
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  PAYSTACK_CARD
+  PAYSTACK_TRANSFER
+  PAYSTACK_USSD
+  MANUAL_BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESSFUL
+  FAILED
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -97,6 +138,11 @@ model Estate {
   residents  Resident[]
   vehicles   Vehicle[]
   auditLogs  AuditLog[]
+  charges    Charge[]
+  invoices   Invoice[]
+  payments   Payment[]
+  receipts   Receipt[]
+  sequences  EstateSequence[]
 
   @@index([subscriptionStatus])
 }
@@ -197,6 +243,7 @@ model Unit {
 
   property    Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   occupancies Occupancy[]
+  invoices    Invoice[]
 
   @@index([estateId])
   @@index([propertyId])
@@ -225,6 +272,7 @@ model Resident {
   user        User?       @relation(fields: [userId], references: [id])
   occupancies Occupancy[]
   vehicles    Vehicle[]
+  invoices    Invoice[]
 
   @@index([estateId])
   @@index([userId])
@@ -263,6 +311,113 @@ model Vehicle {
 
   @@index([estateId])
   @@index([residentId])
+}
+
+// ---------------------------------------------------------------------------
+// Billing & Payments
+// ---------------------------------------------------------------------------
+
+// Backs atomic, human-readable sequential numbers per estate (e.g.
+// INV-000123). The upsert-with-increment in service code is safe under
+// concurrent creation because Postgres serializes on this row's unique
+// index lock within a transaction.
+model EstateSequence {
+  id       String @id @default(cuid())
+  estateId String
+  key      String
+  value    Int    @default(0)
+
+  estate Estate @relation(fields: [estateId], references: [id], onDelete: Cascade)
+
+  @@unique([estateId, key])
+}
+
+// A billing rule (e.g. "2026 Estate Service Charge") targeting some scope
+// of the estate. Its effect is materialized immediately as Invoice rows at
+// creation time — targetCriteria is kept only for display/audit, not
+// re-resolved later, so changing estate structure afterward can't silently
+// change who was billed.
+model Charge {
+  id             String           @id @default(cuid())
+  estateId       String
+  title          String
+  description    String?
+  chargeType     ChargeType
+  amountKobo     Int
+  dueDate        DateTime
+  targetType     ChargeTargetType
+  targetCriteria Json
+  createdAt      DateTime         @default(now())
+
+  estate   Estate    @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([estateId])
+}
+
+// One invoice = one charge (no multi-charge bundling) — matches how the
+// product spec presents billing and avoids an abstraction this phase
+// doesn't need. residentId is a snapshot of who was billed at generation
+// time, not a live link to current occupancy.
+model Invoice {
+  id            String        @id @default(cuid())
+  estateId      String
+  chargeId      String
+  unitId        String
+  residentId    String?
+  invoiceNumber String
+  amountKobo    Int
+  dueDate       DateTime
+  status        InvoiceStatus @default(PENDING)
+  createdAt     DateTime      @default(now())
+
+  estate   Estate    @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  charge   Charge    @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  unit     Unit      @relation(fields: [unitId], references: [id])
+  resident Resident? @relation(fields: [residentId], references: [id])
+  payments Payment[]
+
+  @@unique([estateId, invoiceNumber])
+  @@index([estateId])
+  @@index([unitId])
+  @@index([residentId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  estateId          String
+  invoiceId         String
+  amountKobo        Int
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  paystackReference String?       @unique
+  note              String?
+  recordedByUserId  String?
+  approvedByUserId  String?
+  approvedAt        DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+
+  estate  Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  receipt Receipt?
+
+  @@index([estateId])
+  @@index([invoiceId])
+}
+
+model Receipt {
+  id            String   @id @default(cuid())
+  estateId      String
+  paymentId     String   @unique
+  receiptNumber String
+  issuedAt      DateTime @default(now())
+
+  estate  Estate  @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([estateId, receiptNumber])
+  @@index([estateId])
 }
 
 // ---------------------------------------------------------------------------

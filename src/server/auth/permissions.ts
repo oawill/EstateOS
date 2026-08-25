@@ -44,7 +44,15 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "estate:*",
     "properties:*",
     "residents:*",
+    // "billing:*" is a documentation umbrella, not a real wildcard match —
+    // hasPermission's matching is resource-scoped, so the actual billing
+    // checks (requireEstatePermission(slug, "charges:*") etc.) need these
+    // resource-specific grants spelled out, same keys FINANCE has.
     "billing:*",
+    "charges:*",
+    "invoices:*",
+    "payments:*",
+    "receipts:*",
     "maintenance:*",
     "visitors:*",
     "announcements:*",

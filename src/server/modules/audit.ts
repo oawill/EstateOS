@@ -2,7 +2,9 @@ import { prisma } from "@/server/db/client";
 
 interface RecordAuditInput {
   estateId: string | null;
-  actorUserId: string;
+  // null for system-originated events with no human actor (e.g. a
+  // Paystack webhook finalizing a payment).
+  actorUserId: string | null;
   action: string;
   entityType: string;
   entityId: string;

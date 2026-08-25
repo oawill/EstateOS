@@ -9,5 +9,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Integration tests hit the real dev database and need DATABASE_URL
+    // loaded (see `pnpm test:integration`) — excluded from the default,
+    // DB-free `pnpm test` run.
+    exclude: ["node_modules/**", "**/*.integration.test.ts"],
   },
 });

@@ -2,7 +2,7 @@
 
 The operating system for modern Nigerian estates. Multi-tenant SaaS for estate management: billing, payments, visitors, security, maintenance, utilities, and announcements — one platform per estate, isolated by tenant.
 
-This is **Phase 1**: architecture, auth, multi-tenancy, RBAC, estate onboarding, and properties/residents management. Billing, payments, visitors, maintenance, and utilities are later phases (see [Roadmap](#roadmap)).
+This is **Phase 1 + Phase 2**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, and the core billing/payments loop (charges → invoices → payment → receipt). Visitors, maintenance, utilities, and CSV import are later phases (see [Roadmap](#roadmap)).
 
 ## Stack
 
@@ -10,7 +10,8 @@ This is **Phase 1**: architecture, auth, multi-tenancy, RBAC, estate onboarding,
 - **Tailwind CSS 4**
 - **PostgreSQL** via **Prisma 7** (driver-adapter model — see `src/server/db/client.ts`)
 - **Auth.js v5** (Credentials provider, JWT sessions)
-- **Vitest** for unit tests
+- **Paystack** (card/bank transfer/USSD) + manual bank-transfer recording, for payments
+- **Vitest** for unit and integration tests
 
 ## Local setup
 
@@ -22,7 +23,7 @@ You need a local PostgreSQL instance (native install or Docker). Create a dedica
 psql -U postgres -c "CREATE ROLE estateos WITH LOGIN PASSWORD 'yourpassword' CREATEDB; CREATE DATABASE estateos OWNER estateos;"
 ```
 
-`CREATEDB` is required because `prisma migrate dev` creates a temporary shadow database to compute migrations.
+`CREATEDB` is required because `prisma migrate dev` creates a temporary shadow database to compute migrations. If your role can't be granted `CREATEDB`, create a second empty database yourself (e.g. `estateos_shadow`) and set `SHADOW_DATABASE_URL` in `.env` instead — see `.env.example`.
 
 If you'd rather use Docker, a `docker-compose.yml` is included:
 
@@ -38,6 +39,8 @@ Copy `.env.example` to `.env` and fill in `DATABASE_URL` (URL-encode any special
 cp .env.example .env
 npx auth secret
 ```
+
+To exercise the Paystack payment path live, add `PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` (test keys from your Paystack dashboard). Without them, "Pay with card / bank transfer" fails gracefully with a message pointing residents to the manual bank-transfer path instead — see [What's mocked or deferred](#whats-mocked-or-deferred-not-built-yet).
 
 ### 3. Install, migrate, seed
 
@@ -66,7 +69,9 @@ pnpm dev
 |---|---|
 | `pnpm dev` / `pnpm build` / `pnpm start` | Next.js dev/build/start |
 | `pnpm lint` | ESLint |
-| `pnpm test` | Vitest unit tests (no DB required — tenant scoping and RBAC are tested against mocks) |
+| `pnpm test` | Vitest unit tests (no DB required — tenant scoping, RBAC, sequence numbering, and Paystack signature verification are tested against mocks) |
+| `pnpm test:integration` | Vitest integration tests against the real dev database (payment idempotency) |
+| `pnpm db:generate` | Regenerate the Prisma client |
 | `pnpm db:migrate` | Run Prisma migrations |
 | `pnpm db:seed` | Seed demo data |
 | `pnpm db:studio` | Open Prisma Studio |
@@ -76,22 +81,26 @@ pnpm dev
 - **Multi-tenancy**: shared database, `estateId` on every tenant-owned row. All reads/writes to tenant tables go through `scoped(estateId)` in `src/server/db/scoped.ts`, which injects `estateId` server-side into every query — it is structurally impossible to read or mutate another tenant's row through this API, regardless of client input. Platform-admin cross-tenant queries live only in `src/server/modules/platform/`.
 - **RBAC**: `src/server/auth/permissions.ts` is a static, in-code map from the 7 roles to permissions. `requireEstatePermission()` in `src/server/auth/guards.ts` is the single choke point every Server Action/page uses — enforced server-side, never trusting client-hidden UI.
 - **Auth**: Auth.js v5, Credentials provider, JWT sessions. Estate access is resolved fresh on every request from the URL's `estateSlug` + the caller's `EstateMember` row — a slug for an estate you're not a member of behaves identically to a slug that doesn't exist.
-- **Audit log**: every create/update on Estate, Property, Unit, Resident, Occupancy, Vehicle, Block/Street/Zone, and platform subscription-status changes writes an `AuditLog` row (actor, before/after JSON).
+- **Billing**: one invoice = one charge (no multi-charge bundling). Creating a `Charge` immediately resolves its target scope (entire estate / blocks / streets / property types / selected properties) into `Invoice` rows for each targeted unit's current resident — see `createChargeAndGenerateInvoices` in `src/server/modules/billing/service.ts`. Invoice/receipt numbers are atomic per-estate sequences (`src/server/modules/sequence.ts`), safe under concurrent creation via Postgres's row-lock on the `EstateSequence` unique index.
+- **Payments**: never trusted from the frontend. `applySuccessfulPayment()` is the single place a payment is ever marked successful — called only by the signature-verified Paystack webhook (`app/api/webhooks/paystack/route.ts`) or by Finance/Admin approving a manual bank-transfer record. It recomputes the invoice's status from the sum of all successful payments, issues a receipt, and writes an audit log, so both payment paths share identical behavior. Idempotent by design (`paystackReference` uniqueness + a status check) — proven in `src/server/modules/billing/__tests__/idempotency.integration.test.ts` against the real database.
+- **Audit log**: every create/update on Estate, Property, Unit, Resident, Occupancy, Vehicle, Block/Street/Zone, Charge, Payment, and platform subscription-status changes writes an `AuditLog` row (actor, before/after JSON).
 
 ## What's mocked or deferred (not built yet)
 
-- **Billing/payments** (Phase 2): charges, invoices, Paystack integration, receipts, finance dashboard, CSV import.
+- **Paystack live verification**: the initialize call and webhook handling are fully implemented (signature verification, idempotency), but need real Paystack test keys to exercise live — see `PAYSTACK_SECRET_KEY` above. Webhooks also can't reach `localhost`; use ngrok or Paystack's dashboard webhook-replay tool.
+- **CSV import** (follow-up to Phase 2): properties/residents/opening-balance bulk import.
 - **Visitors & Gate Mode** (Phase 3): QR/PIN generation, security check-in/out.
 - **Maintenance & utilities** (Phase 3): tickets, vendor work orders, meter readings.
 - **Announcements & notifications** (Phase 3): the `notifications` table and multi-channel (WhatsApp/SMS/email) dispatch don't exist yet.
 - **Platform super-admin billing** (Phase 4): plans/pricing config, platform revenue.
 - **Landing page** (Phase 4).
+- **Printable/PDF receipts**: receipts exist as data (receipt number, issued date) shown inline on the invoice; a dedicated printable/PDF view is a later nice-to-have.
 - **Phone/OTP login**: only email+password exists; the Credentials provider is structured so this is additive, not a rewrite.
-- **Rate limiting, upload hardening, CSP**: flagged as TODO — real work starts once Phase 2/3 introduce public forms and file uploads.
+- **Rate limiting, upload hardening, CSP**: flagged as TODO — real work starts once Phase 3 introduces public forms and file uploads.
 
 ## Roadmap
 
-1. ~~Foundation~~ — architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/units, residents. **(this phase)**
-2. Billing & payments — charges, invoices, Paystack, receipts, finance dashboard, CSV import.
-3. Visitors/Gate Mode, maintenance & vendor workflow, utilities, announcements/notifications.
+1. ~~Foundation~~ — architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/units, residents.
+2. ~~Billing & payments~~ — charges, invoice generation, Paystack + manual payments, receipts, finance dashboard. **(this phase)**
+3. CSV import, then visitors/Gate Mode, maintenance & vendor workflow, utilities, announcements/notifications.
 4. Platform super-admin portal (subscriptions/pricing), public landing page.

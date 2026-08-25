@@ -1,4 +1,4 @@
-import type { Block, Prisma, Property, Resident, Street, Unit, Vehicle, Zone } from "@prisma/client";
+import type { Block, Charge, Invoice, Payment, Prisma, Property, Receipt, Resident, Street, Unit, Vehicle, Zone } from "@prisma/client";
 import { prisma } from "./client";
 
 /**
@@ -127,6 +127,34 @@ export function scoped(estateId: string) {
       Omit<Prisma.VehicleUncheckedCreateInput, "estateId" | "id" | "createdAt">,
       Prisma.VehicleUpdateInput
     >(prisma.vehicle, "Vehicle", estateId),
+
+    charge: makeScopedDelegate<
+      Prisma.ChargeWhereInput,
+      Charge,
+      Omit<Prisma.ChargeCreateInput, "estateId" | "estate">,
+      Prisma.ChargeUpdateInput
+    >(prisma.charge, "Charge", estateId),
+
+    invoice: makeScopedDelegate<
+      Prisma.InvoiceWhereInput,
+      Invoice,
+      Omit<Prisma.InvoiceUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.InvoiceUpdateInput
+    >(prisma.invoice, "Invoice", estateId),
+
+    payment: makeScopedDelegate<
+      Prisma.PaymentWhereInput,
+      Payment,
+      Omit<Prisma.PaymentUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.PaymentUpdateInput
+    >(prisma.payment, "Payment", estateId),
+
+    receipt: makeScopedDelegate<
+      Prisma.ReceiptWhereInput,
+      Receipt,
+      Omit<Prisma.ReceiptUncheckedCreateInput, "estateId" | "id" | "issuedAt">,
+      Prisma.ReceiptUpdateInput
+    >(prisma.receipt, "Receipt", estateId),
   };
 }
 

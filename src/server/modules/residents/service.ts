@@ -20,6 +20,11 @@ export async function listResidents(estateId: string) {
   });
 }
 
+/** The Resident profile linked to a logged-in user, scoped to one estate. */
+export async function getResidentByUserId(estateId: string, userId: string) {
+  return scoped(estateId).resident.findMany({ where: { userId } as never }).then((rows) => rows[0] ?? null);
+}
+
 /**
  * Creates a Resident and their current Occupancy together. The unit is
  * re-verified against this estate here (not just trusted from the form)

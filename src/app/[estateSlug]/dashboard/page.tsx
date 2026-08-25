@@ -1,15 +1,20 @@
+import Link from "next/link";
 import { Role } from "@prisma/client";
-import { Card } from "@/components/shared/ui";
+import { Button, Card } from "@/components/shared/ui";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstateMember } from "@/server/auth/session";
 import { prisma } from "@/server/db/client";
+import { formatNaira } from "@/lib/utils";
+import { getFinanceSummary, getResidentOutstandingBalanceKobo } from "@/server/modules/billing/service";
+import { getResidentByUserId } from "@/server/modules/residents/service";
 
 async function AdminOverview({ estateId }: { estateId: string }) {
-  const [propertyCount, unitCount, residentCount, occupiedUnits] = await Promise.all([
+  const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary] = await Promise.all([
     prisma.property.count({ where: { estateId } }),
     prisma.unit.count({ where: { estateId } }),
     prisma.resident.count({ where: { estateId } }),
     prisma.unit.count({ where: { estateId, occupancyStatus: "OCCUPIED" } }),
+    getFinanceSummary(estateId),
   ]);
 
   const stats = [
@@ -17,6 +22,9 @@ async function AdminOverview({ estateId }: { estateId: string }) {
     { label: "Units", value: unitCount },
     { label: "Occupied units", value: occupiedUnits },
     { label: "Registered residents", value: residentCount },
+    { label: "Collected this month", value: formatNaira(financeSummary.collectionsThisMonthKobo) },
+    { label: "Outstanding", value: formatNaira(financeSummary.outstandingKobo) },
+    { label: "Overdue invoices", value: financeSummary.overdueCount },
   ];
 
   return (
@@ -28,6 +36,51 @@ async function AdminOverview({ estateId }: { estateId: string }) {
         </Card>
       ))}
     </div>
+  );
+}
+
+async function FinanceOverview({ estateId }: { estateId: string }) {
+  const summary = await getFinanceSummary(estateId);
+  const stats = [
+    { label: "Collected today", value: formatNaira(summary.collectionsTodayKobo) },
+    { label: "Collected this month", value: formatNaira(summary.collectionsThisMonthKobo) },
+    { label: "Collected this year", value: formatNaira(summary.collectionsThisYearKobo) },
+    { label: "Outstanding", value: formatNaira(summary.outstandingKobo) },
+    { label: "Overdue invoices", value: summary.overdueCount },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      {stats.map((s) => (
+        <Card key={s.label}>
+          <p className="text-xl font-semibold">{s.value}</p>
+          <p className="mt-1 text-sm text-slate-500">{s.label}</p>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+async function ResidentOverview({ estateId, estateSlug, userId }: { estateId: string; estateSlug: string; userId: string }) {
+  const resident = await getResidentByUserId(estateId, userId);
+  if (!resident) {
+    return (
+      <Card>
+        <p className="text-sm text-slate-500">Your resident profile isn&apos;t linked yet — contact your estate administrator.</p>
+      </Card>
+    );
+  }
+
+  const outstandingKobo = await getResidentOutstandingBalanceKobo(estateId, resident.id);
+
+  return (
+    <Card>
+      <p className="text-sm text-slate-500">Outstanding balance</p>
+      <p className="mt-1 text-3xl font-semibold">{formatNaira(outstandingKobo)}</p>
+      <Link href={`/${estateSlug}/my/bills`}>
+        <Button className="mt-4 w-full">{outstandingKobo > 0 ? "Pay now" : "View bills"}</Button>
+      </Link>
+    </Card>
   );
 }
 
@@ -53,12 +106,7 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
 
       {membership.role === Role.ESTATE_ADMIN && <AdminOverview estateId={membership.estateId} />}
 
-      {membership.role === Role.FINANCE && (
-        <PlaceholderPanel
-          title="Finance dashboard"
-          description="Collections, outstanding balances, and invoices arrive in Phase 2 once billing is built."
-        />
-      )}
+      {membership.role === Role.FINANCE && <FinanceOverview estateId={membership.estateId} />}
 
       {membership.role === Role.FACILITY_MANAGER && (
         <PlaceholderPanel
@@ -75,10 +123,7 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
       )}
 
       {membership.role === Role.RESIDENT && (
-        <PlaceholderPanel
-          title="Your estate"
-          description="Bills, payments, visitor invitations, and maintenance requests arrive in later phases. For now this confirms your resident login and estate access work end to end."
-        />
+        <ResidentOverview estateId={membership.estateId} estateSlug={estateSlug} userId={user.id} />
       )}
 
       {membership.role === Role.VENDOR && (
