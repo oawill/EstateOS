@@ -7,14 +7,16 @@ import { prisma } from "@/server/db/client";
 import { formatNaira } from "@/lib/utils";
 import { getFinanceSummary, getResidentOutstandingBalanceKobo } from "@/server/modules/billing/service";
 import { getResidentByUserId } from "@/server/modules/residents/service";
+import { countCurrentlyCheckedIn } from "@/server/modules/visitors/service";
 
 async function AdminOverview({ estateId }: { estateId: string }) {
-  const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary] = await Promise.all([
+  const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary, checkedInCount] = await Promise.all([
     prisma.property.count({ where: { estateId } }),
     prisma.unit.count({ where: { estateId } }),
     prisma.resident.count({ where: { estateId } }),
     prisma.unit.count({ where: { estateId, occupancyStatus: "OCCUPIED" } }),
     getFinanceSummary(estateId),
+    countCurrentlyCheckedIn(estateId),
   ]);
 
   const stats = [
@@ -25,6 +27,7 @@ async function AdminOverview({ estateId }: { estateId: string }) {
     { label: "Collected this month", value: formatNaira(financeSummary.collectionsThisMonthKobo) },
     { label: "Outstanding", value: formatNaira(financeSummary.outstandingKobo) },
     { label: "Overdue invoices", value: financeSummary.overdueCount },
+    { label: "Visitors currently inside", value: checkedInCount },
   ];
 
   return (
@@ -116,10 +119,16 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
       )}
 
       {membership.role === Role.SECURITY && (
-        <PlaceholderPanel
-          title="Gate Mode"
-          description="Visitor QR/PIN verification and check-in/out arrive in Phase 3. Security has no access to billing data by design."
-        />
+        <Card>
+          <h2 className="font-medium">Gate Mode</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Verify visitor QR codes and PINs, and check visitors in/out. Security has no access to billing or
+            resident financial data by design.
+          </p>
+          <Link href={`/${estateSlug}/gate`}>
+            <Button className="mt-4 w-full">Open Gate Mode</Button>
+          </Link>
+        </Card>
       )}
 
       {membership.role === Role.RESIDENT && (

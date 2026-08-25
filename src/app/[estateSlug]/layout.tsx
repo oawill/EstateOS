@@ -19,9 +19,10 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
     { href: "billing", label: "Billing" },
   ],
   [Role.FACILITY_MANAGER]: [{ href: "dashboard", label: "Dashboard" }],
-  [Role.SECURITY]: [{ href: "dashboard", label: "Gate" }],
+  [Role.SECURITY]: [{ href: "gate", label: "Gate" }],
   [Role.RESIDENT]: [
     { href: "dashboard", label: "Home" },
+    { href: "visitors", label: "Visitors" },
     { href: "my/bills", label: "My Bills" },
   ],
   [Role.VENDOR]: [{ href: "dashboard", label: "My Jobs" }],

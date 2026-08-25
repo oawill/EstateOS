@@ -143,6 +143,8 @@ model Estate {
   payments   Payment[]
   receipts   Receipt[]
   sequences  EstateSequence[]
+  visitorPasses VisitorPass[]
+  gateEntries   GateEntry[]
 
   @@index([subscriptionStatus])
 }
@@ -273,6 +275,7 @@ model Resident {
   occupancies Occupancy[]
   vehicles    Vehicle[]
   invoices    Invoice[]
+  visitorPasses VisitorPass[]
 
   @@index([estateId])
   @@index([userId])
@@ -418,6 +421,60 @@ model Receipt {
 
   @@unique([estateId, receiptNumber])
   @@index([estateId])
+}
+
+// ---------------------------------------------------------------------------
+// Visitors & Gate
+// ---------------------------------------------------------------------------
+
+// One invite = one visit occasion — carries the visitor's identity fields
+// directly rather than a separate reusable Visitor profile, since nothing
+// in this phase needs to reuse a visitor's details across visits.
+model VisitorPass {
+  id            String   @id @default(cuid())
+  estateId      String
+  residentId    String // host
+  visitorName   String
+  visitorPhone  String?
+  vehicleNumber String?
+  note          String?
+  startTime     DateTime
+  expiresAt     DateTime
+  // 6 digits, time-scoped uniqueness only (see createVisitorPass) — not a
+  // DB unique constraint, since permanently reserving PINs would
+  // eventually exhaust the 1,000,000-combination space.
+  pin           String
+  isRevoked     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  estate      Estate      @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident    Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  gateEntries GateEntry[]
+
+  @@index([estateId])
+  @@index([residentId])
+}
+
+// A single pass-through-the-gate event. Separate from VisitorPass so one
+// pass can be used for multiple entries/exits within its validity window,
+// and so "visitors currently checked in" is a direct query
+// (checkOutAt IS NULL) rather than derived state on the pass itself.
+model GateEntry {
+  id             String    @id @default(cuid())
+  estateId       String
+  passId         String
+  gate           String // free text, e.g. "Gate 1" — no Gate model for MVP
+  securityUserId String
+  checkInAt      DateTime  @default(now())
+  checkOutAt     DateTime?
+  wasOverride    Boolean   @default(false)
+  overrideReason String?
+
+  estate Estate      @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  pass   VisitorPass @relation(fields: [passId], references: [id], onDelete: Cascade)
+
+  @@index([estateId])
+  @@index([passId])
 }
 
 // ---------------------------------------------------------------------------
