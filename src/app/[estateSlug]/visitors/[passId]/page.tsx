@@ -22,12 +22,14 @@ export default async function VisitorPassPage({
   params: Promise<{ estateSlug: string; passId: string }>;
 }) {
   const { estateSlug, passId } = await params;
-  const { user, membership } = await guardPage(() => requireEstatePermission(estateSlug, "own-visitors:*"));
 
-  const resident = await getResidentByUserId(membership.estateId, user.id);
-  if (!resident) throw new NotFoundError("Resident profile");
-
-  const pass = await getPassForResident(membership.estateId, resident.id, passId);
+  const { membership, pass } = await guardPage(async () => {
+    const { user, membership } = await requireEstatePermission(estateSlug, "own-visitors:*");
+    const resident = await getResidentByUserId(membership.estateId, user.id);
+    if (!resident) throw new NotFoundError("Resident profile");
+    const pass = await getPassForResident(membership.estateId, resident.id, passId);
+    return { membership, pass };
+  });
   const status = passStatus(pass);
 
   const token = signVisitorToken(membership.estateId, pass.id);

@@ -90,6 +90,36 @@ enum PaymentStatus {
   FAILED
 }
 
+enum MaintenanceCategory {
+  ELECTRICITY
+  GENERATOR
+  PLUMBING
+  WATER
+  SECURITY
+  ROADS
+  DRAINAGE
+  WASTE
+  LANDSCAPING
+  BUILDING
+  OTHER
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  REPORTED
+  REVIEWED
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -109,6 +139,7 @@ model User {
   memberships   EstateMember[]
   residentLinks Resident[]
   auditLogs     AuditLog[]     @relation("ActorUser")
+  assignedMaintenanceTickets MaintenanceTicket[] @relation("MaintenanceAssignee")
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +176,9 @@ model Estate {
   sequences  EstateSequence[]
   visitorPasses VisitorPass[]
   gateEntries   GateEntry[]
+  vendors             Vendor[]
+  maintenanceTickets  MaintenanceTicket[]
+  maintenanceComments MaintenanceComment[]
 
   @@index([subscriptionStatus])
 }
@@ -276,6 +310,7 @@ model Resident {
   vehicles    Vehicle[]
   invoices    Invoice[]
   visitorPasses VisitorPass[]
+  maintenanceTickets MaintenanceTicket[]
 
   @@index([estateId])
   @@index([userId])
@@ -475,6 +510,85 @@ model GateEntry {
 
   @@index([estateId])
   @@index([passId])
+}
+
+// ---------------------------------------------------------------------------
+// Maintenance & Vendors
+// ---------------------------------------------------------------------------
+
+// A directory entry a FACILITY_MANAGER can attach to a ticket for
+// record-keeping — not a login. A vendor's own staff who need to see
+// their assigned tickets are separate Users with Role.VENDOR, linked via
+// MaintenanceTicket.assignedToUserId, not via this model.
+model Vendor {
+  id          String               @id @default(cuid())
+  estateId    String
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  category    MaintenanceCategory?
+  createdAt   DateTime             @default(now())
+
+  estate  Estate              @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  tickets MaintenanceTicket[]
+
+  @@index([estateId])
+}
+
+model MaintenanceTicket {
+  id            String              @id @default(cuid())
+  estateId      String
+  ticketNumber  String
+  residentId    String // reporter
+  category      MaintenanceCategory
+  description   String
+  location      String?
+  priority      MaintenancePriority
+  status        MaintenanceStatus   @default(REPORTED)
+  assignedToUserId String? // internal staff or a VENDOR-role user who can log in
+  vendorId      String? // directory-only record, for record-keeping
+
+  residentSatisfied Boolean?
+  residentRating    Int?
+  residentFeedback  String?
+
+  assignedAt DateTime?
+  resolvedAt DateTime?
+  closedAt   DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  estate       Estate               @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident     Resident             @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  vendor       Vendor?              @relation(fields: [vendorId], references: [id])
+  assignedToUser User?              @relation("MaintenanceAssignee", fields: [assignedToUserId], references: [id])
+  comments     MaintenanceComment[]
+
+  @@unique([estateId, ticketNumber])
+  @@index([estateId])
+  @@index([residentId])
+  @@index([assignedToUserId])
+}
+
+// Doubles as the resident-visible progress log: a plain note, or a note
+// alongside a status transition (newStatus set) — no separate free-form
+// discussion feature, since the workflow's status history already is the
+// "progress" the spec asks for.
+model MaintenanceComment {
+  id          String             @id @default(cuid())
+  estateId    String
+  ticketId    String
+  authorUserId String
+  body        String
+  newStatus   MaintenanceStatus?
+  createdAt   DateTime           @default(now())
+
+  estate Estate            @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  ticket MaintenanceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([estateId])
+  @@index([ticketId])
 }
 
 // ---------------------------------------------------------------------------

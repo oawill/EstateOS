@@ -3,6 +3,8 @@ import type {
   Charge,
   GateEntry,
   Invoice,
+  MaintenanceComment,
+  MaintenanceTicket,
   Payment,
   Prisma,
   Property,
@@ -11,6 +13,7 @@ import type {
   Street,
   Unit,
   Vehicle,
+  Vendor,
   VisitorPass,
   Zone,
 } from "@prisma/client";
@@ -184,6 +187,27 @@ export function scoped(estateId: string) {
       Omit<Prisma.GateEntryUncheckedCreateInput, "estateId" | "id" | "checkInAt">,
       Prisma.GateEntryUpdateInput
     >(prisma.gateEntry, "GateEntry", estateId),
+
+    vendor: makeScopedDelegate<
+      Prisma.VendorWhereInput,
+      Vendor,
+      Omit<Prisma.VendorCreateInput, "estateId" | "estate">,
+      Prisma.VendorUpdateInput
+    >(prisma.vendor, "Vendor", estateId),
+
+    maintenanceTicket: makeScopedDelegate<
+      Prisma.MaintenanceTicketWhereInput,
+      MaintenanceTicket,
+      Omit<Prisma.MaintenanceTicketUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.MaintenanceTicketUncheckedUpdateInput
+    >(prisma.maintenanceTicket, "MaintenanceTicket", estateId),
+
+    maintenanceComment: makeScopedDelegate<
+      Prisma.MaintenanceCommentWhereInput,
+      MaintenanceComment,
+      Omit<Prisma.MaintenanceCommentUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.MaintenanceCommentUpdateInput
+    >(prisma.maintenanceComment, "MaintenanceComment", estateId),
   };
 }
 

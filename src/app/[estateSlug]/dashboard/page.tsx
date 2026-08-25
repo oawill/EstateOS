@@ -8,16 +8,19 @@ import { formatNaira } from "@/lib/utils";
 import { getFinanceSummary, getResidentOutstandingBalanceKobo } from "@/server/modules/billing/service";
 import { getResidentByUserId } from "@/server/modules/residents/service";
 import { countCurrentlyCheckedIn } from "@/server/modules/visitors/service";
+import { getMaintenanceSummary } from "@/server/modules/maintenance/service";
 
 async function AdminOverview({ estateId }: { estateId: string }) {
-  const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary, checkedInCount] = await Promise.all([
-    prisma.property.count({ where: { estateId } }),
-    prisma.unit.count({ where: { estateId } }),
-    prisma.resident.count({ where: { estateId } }),
-    prisma.unit.count({ where: { estateId, occupancyStatus: "OCCUPIED" } }),
-    getFinanceSummary(estateId),
-    countCurrentlyCheckedIn(estateId),
-  ]);
+  const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary, checkedInCount, maintenanceSummary] =
+    await Promise.all([
+      prisma.property.count({ where: { estateId } }),
+      prisma.unit.count({ where: { estateId } }),
+      prisma.resident.count({ where: { estateId } }),
+      prisma.unit.count({ where: { estateId, occupancyStatus: "OCCUPIED" } }),
+      getFinanceSummary(estateId),
+      countCurrentlyCheckedIn(estateId),
+      getMaintenanceSummary(estateId),
+    ]);
 
   const stats = [
     { label: "Properties", value: propertyCount },
@@ -28,6 +31,8 @@ async function AdminOverview({ estateId }: { estateId: string }) {
     { label: "Outstanding", value: formatNaira(financeSummary.outstandingKobo) },
     { label: "Overdue invoices", value: financeSummary.overdueCount },
     { label: "Visitors currently inside", value: checkedInCount },
+    { label: "Open maintenance tickets", value: maintenanceSummary.openCount },
+    { label: "Overdue maintenance tickets", value: maintenanceSummary.overdueCount },
   ];
 
   return (
@@ -64,6 +69,28 @@ async function FinanceOverview({ estateId }: { estateId: string }) {
   );
 }
 
+async function FacilityOverview({ estateId, estateSlug }: { estateId: string; estateSlug: string }) {
+  const summary = await getMaintenanceSummary(estateId);
+
+  return (
+    <Card>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <p className="text-2xl font-semibold">{summary.openCount}</p>
+          <p className="mt-1 text-sm text-slate-500">Open tickets</p>
+        </div>
+        <div>
+          <p className="text-2xl font-semibold">{summary.overdueCount}</p>
+          <p className="mt-1 text-sm text-slate-500">Overdue tickets</p>
+        </div>
+      </div>
+      <Link href={`/${estateSlug}/facility`}>
+        <Button className="mt-4 w-full">Open Facility</Button>
+      </Link>
+    </Card>
+  );
+}
+
 async function ResidentOverview({ estateId, estateSlug, userId }: { estateId: string; estateSlug: string; userId: string }) {
   const resident = await getResidentByUserId(estateId, userId);
   if (!resident) {
@@ -87,15 +114,6 @@ async function ResidentOverview({ estateId, estateSlug, userId }: { estateId: st
   );
 }
 
-function PlaceholderPanel({ title, description }: { title: string; description: string }) {
-  return (
-    <Card>
-      <h2 className="font-medium">{title}</h2>
-      <p className="mt-1 text-sm text-slate-500">{description}</p>
-    </Card>
-  );
-}
-
 export default async function EstateDashboardPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
@@ -112,10 +130,7 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
       {membership.role === Role.FINANCE && <FinanceOverview estateId={membership.estateId} />}
 
       {membership.role === Role.FACILITY_MANAGER && (
-        <PlaceholderPanel
-          title="Facility dashboard"
-          description="Maintenance tickets, utilities, and vendor work orders arrive in Phase 3."
-        />
+        <FacilityOverview estateId={membership.estateId} estateSlug={estateSlug} />
       )}
 
       {membership.role === Role.SECURITY && (
@@ -136,7 +151,13 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
       )}
 
       {membership.role === Role.VENDOR && (
-        <PlaceholderPanel title="My jobs" description="Assigned work orders arrive in Phase 3." />
+        <Card>
+          <h2 className="font-medium">My jobs</h2>
+          <p className="mt-1 text-sm text-slate-500">Maintenance tickets assigned to you.</p>
+          <Link href={`/${estateSlug}/jobs`}>
+            <Button className="mt-4 w-full">View my jobs</Button>
+          </Link>
+        </Card>
       )}
     </div>
   );

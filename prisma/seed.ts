@@ -51,6 +51,11 @@ async function main() {
     update: {},
     create: { email: "resident@greenview.ng", name: "Adebayo Lawal", passwordHash },
   });
+  const greenviewVendor = await prisma.user.upsert({
+    where: { email: "vendor@greenview.ng" },
+    update: {},
+    create: { email: "vendor@greenview.ng", name: "Emeka Okoye", passwordHash },
+  });
 
   const greenview = await prisma.estate.upsert({
     where: { slug: "greenview-gardens" },
@@ -74,6 +79,7 @@ async function main() {
       { estateId: greenview.id, userId: greenviewFacility.id, role: Role.FACILITY_MANAGER },
       { estateId: greenview.id, userId: greenviewSecurity.id, role: Role.SECURITY },
       { estateId: greenview.id, userId: residentUser.id, role: Role.RESIDENT },
+      { estateId: greenview.id, userId: greenviewVendor.id, role: Role.VENDOR },
     ],
     skipDuplicates: true,
   });
@@ -155,7 +161,7 @@ async function main() {
   console.log("Seed complete.");
   console.log("Demo password for every seeded user:", DEMO_PASSWORD);
   console.log("Platform admin: admin@estateos.ng");
-  console.log("Greenview Gardens admin: admin@greenview.ng (also finance/facility/security/resident @greenview.ng)");
+  console.log("Greenview Gardens admin: admin@greenview.ng (also finance/facility/security/resident/vendor @greenview.ng)");
   console.log("Palm Court admin (tenant isolation check): admin@palmcourt.ng");
 }
 
