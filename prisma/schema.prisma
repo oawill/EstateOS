@@ -120,6 +120,38 @@ enum MaintenanceStatus {
   CLOSED
 }
 
+enum AnnouncementCategory {
+  POWER_OUTAGE
+  GENERATOR_MAINTENANCE
+  WATER_INTERRUPTION
+  SECURITY_NOTICE
+  ESTATE_MEETING
+  ROAD_REPAIRS
+  SERVICE_CHARGE_REMINDER
+  OTHER
+}
+
+enum AnnouncementTargetType {
+  ENTIRE_ESTATE
+  BLOCK
+  STREET
+  ZONE
+  SELECTED_PROPERTIES
+}
+
+enum NotificationChannelType {
+  IN_APP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -182,6 +214,8 @@ model Estate {
   utilityMeters   UtilityMeter[]
   meterReadings   MeterReading[]
   utilityBills    UtilityBill[]
+  announcements   Announcement[]
+  notifications   Notification[]
 
   @@index([subscriptionStatus])
 }
@@ -315,6 +349,7 @@ model Resident {
   invoices    Invoice[]
   visitorPasses VisitorPass[]
   maintenanceTickets MaintenanceTicket[]
+  notifications Notification[]
 
   @@index([estateId])
   @@index([userId])
@@ -661,6 +696,55 @@ model UtilityBill {
   invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([estateId])
+}
+
+// ---------------------------------------------------------------------------
+// Announcements & Notifications
+// ---------------------------------------------------------------------------
+
+// Its effect is materialized immediately as Notification rows at creation
+// time, same as Charge/Invoice generation — targetCriteria is kept only
+// for display/audit, not re-resolved later.
+model Announcement {
+  id             String                  @id @default(cuid())
+  estateId       String
+  authorUserId   String
+  title          String
+  body           String
+  category       AnnouncementCategory
+  targetType     AnnouncementTargetType
+  targetCriteria Json
+  createdAt      DateTime                @default(now())
+
+  estate        Estate         @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([estateId])
+}
+
+// The shared notification event system — announcementId is nullable so a
+// future event (payment confirmed, visitor checked in) can use the same
+// table/dispatcher without a schema change; this isn't an
+// announcements-only inbox.
+model Notification {
+  id             String                   @id @default(cuid())
+  estateId       String
+  residentId     String
+  announcementId String?
+  title          String
+  body           String
+  channel        NotificationChannelType @default(IN_APP)
+  status         NotificationStatus      @default(PENDING)
+  readAt         DateTime?
+  createdAt      DateTime                @default(now())
+
+  estate       Estate        @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident     Resident      @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  announcement Announcement? @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([estateId])
+  @@index([residentId])
+  @@index([announcementId])
 }
 
 // ---------------------------------------------------------------------------

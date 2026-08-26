@@ -1,4 +1,5 @@
 import type {
+  Announcement,
   Block,
   Charge,
   GateEntry,
@@ -6,6 +7,7 @@ import type {
   MaintenanceComment,
   MaintenanceTicket,
   MeterReading,
+  Notification,
   Payment,
   Prisma,
   Property,
@@ -232,6 +234,20 @@ export function scoped(estateId: string) {
       Omit<Prisma.UtilityBillUncheckedCreateInput, "estateId" | "id" | "createdAt">,
       Prisma.UtilityBillUpdateInput
     >(prisma.utilityBill, "UtilityBill", estateId),
+
+    announcement: makeScopedDelegate<
+      Prisma.AnnouncementWhereInput,
+      Announcement,
+      Omit<Prisma.AnnouncementUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.AnnouncementUpdateInput
+    >(prisma.announcement, "Announcement", estateId),
+
+    notification: makeScopedDelegate<
+      Prisma.NotificationWhereInput,
+      Notification,
+      Omit<Prisma.NotificationUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.NotificationUpdateInput
+    >(prisma.notification, "Notification", estateId),
   };
 }
 

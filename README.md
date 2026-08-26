@@ -2,7 +2,7 @@
 
 The operating system for modern Nigerian estates. Multi-tenant SaaS for estate management: billing, payments, visitors, security, maintenance, utilities, and announcements — one platform per estate, isolated by tenant.
 
-This is **Phase 1 + Phase 2 + CSV import + Visitors/Gate Mode + Maintenance & vendors + Utilities**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, the core billing/payments loop (charges → invoices → payment → receipt), bulk CSV import, visitor management (QR/PIN passes, gate check-in/out), the maintenance workflow (report → assign → resolve → confirm), and manual utility meter billing. Announcements/notifications are next (see [Roadmap](#roadmap)).
+This is **Phase 1 + Phase 2 + CSV import + Visitors/Gate Mode + Maintenance & vendors + Utilities + Announcements & notifications**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, the core billing/payments loop (charges → invoices → payment → receipt), bulk CSV import, visitor management (QR/PIN passes, gate check-in/out), the maintenance workflow (report → assign → resolve → confirm), manual utility meter billing, and estate announcements with an in-app notification inbox. The platform super-admin portal and public landing page are next (see [Roadmap](#roadmap)).
 
 ## Stack
 
@@ -88,6 +88,7 @@ pnpm dev
 - **Visitors & Gate Mode**: a `VisitorPass` carries the visitor's identity fields directly (one invite = one visit occasion — no separate reusable visitor profile). Its QR code encodes `estateId.passId.signature` (HMAC-SHA256 over `estateId.passId`, reusing `AUTH_SECRET`) — verifying recomputes the signature server-side, so a tampered or guessed id fails before any DB lookup (`src/server/modules/visitors/token.ts`). The 6-digit backup PIN's uniqueness is time-scoped (only checked against currently-valid passes), not a permanent DB constraint, so the 1,000,000-combination space never gets permanently exhausted. Gate Mode's verification input is a plain autofocused text field, not a camera — this matches how cheap-Android gate setups actually work in practice (a USB/Bluetooth barcode-scanner "gun" just types into whatever's focused) and needs no camera/decode dependency. A `GateEntry` is a separate row per pass-through-the-gate (not a field on the pass itself), so "visitors currently checked in" is a direct query and the same pass can be used for multiple entries/exits within its window. Security can force an "override" check-in on an invalid/expired pass with a required reason, audited as `visitor.override_checkin`.
 - **Maintenance & vendors**: assignment fields (`assignedToUserId`, `vendorId`) live directly on `MaintenanceTicket` — no separate `WorkOrder` model, since nothing needs an assignment record with its own lifecycle independent of the ticket yet. `Vendor` is a directory entry `FACILITY_MANAGER` can attach for record-keeping, not a login — a vendor's own staff who need to see their assigned tickets are separate `User`s with `Role.VENDOR`. `MaintenanceComment` rows double as both the audit-style status-change log and the resident-visible progress timeline. "Overdue" uses a documented default SLA by priority (URGENT 24h / HIGH 72h / MEDIUM 7d / LOW 14d since creation, only while still `REPORTED`/`REVIEWED`) — not a real product policy, easy to make configurable later. When a ticket is marked `RESOLVED`, the resident's "Was your issue resolved?" answer either closes it or reopens it to `IN_PROGRESS` with their feedback visible to staff.
 - **Utilities**: a utility bill *is* an `Invoice` — generating one from a meter reading creates a one-off `Charge` (for the audit/grouping record) plus a single `Invoice` for that unit's current resident, directly (not through the multi-unit charge-targeting resolution, since a reading is inherently for one specific unit). This means Paystack, manual bank-transfer recording, receipts, and the finance dashboard all work for utility bills with no extra code. `MeterReading.previousReading` auto-copies from the meter's last reading rather than being typed in each time; a meter's first-ever reading only establishes a baseline (no bill) since there's nothing yet to compare it against. A reading on a vacant unit is still recorded but generates no bill, surfaced to facility staff rather than silently dropped. Manual entry only — the schema doesn't assume how a reading arrives, so a future smart-meter feed would be a new reading-creation path, not a rewrite.
+- **Announcements & notifications**: `Notification` is deliberately not announcement-only — `announcementId` is nullable, so the same table/dispatcher can later carry a payment-confirmation or visitor-checked-in notification without a schema change; this is the shared multi-channel event system the original spec calls for, not an announcements-specific inbox. A small `NotificationChannel` interface (`src/server/modules/notifications/channels.ts`) has one real implementation, `InAppChannel` — for in-app, the `Notification` row itself *is* the delivery. `dispatchNotification()` (`dispatch.ts`) is the single place that decides which channels run for a given notification (today just `IN_APP`), so adding WhatsApp/SMS/email later means writing that channel class and adding one line there, not touching every call site that creates a notification. Unlike billing's owner-then-tenant-only targeting, an announcement reaches *every current occupant* of a targeted unit — owner, tenant, and household members alike, since a power-outage notice should reach everyone living there.
 
 ## What's mocked or deferred (not built yet)
 
@@ -101,12 +102,15 @@ pnpm dev
 - **Maintenance SLA policy**: the priority-based overdue thresholds are a reasonable default, not a real product decision — no configuration UI to change them per estate yet.
 - **Smart-meter / third-party utility integration**: meters and readings are manual-entry only by design — see the Utilities architecture note above for how an automated feed would plug in later.
 - **Utility meter photo evidence**: not captured yet — same file-storage dependency as maintenance photos.
-- **Announcements & notifications** (next phase): the `notifications` table and multi-channel (WhatsApp/SMS/email) dispatch don't exist yet.
-- **Platform super-admin billing** (later phase): plans/pricing config, platform revenue.
-- **Landing page** (later phase).
+- **Email/SMS/WhatsApp notification delivery**: architected as the same `NotificationChannel` interface `InAppChannel` implements, but not built — needs provider credentials (SendGrid/Termii/WhatsApp Business API or similar), same treatment as Paystack's live keys. Only `IN_APP` is enabled today.
+- **Other events wired into the notification dispatcher**: only announcements go through `dispatchNotification()` right now. Hooking in payment confirmations, visitor check-ins, or maintenance status changes is additive (call the same function from that event's service) but hasn't been done yet.
+- **Estate-wide announcement management for non-admin staff**: only `ESTATE_ADMIN` has an authoring UI; other roles (Finance, Facility Manager) don't send announcements in this pass even though nothing in the permission model would prevent it.
+- **Platform super-admin billing** (next phase): plans/pricing config, platform revenue.
+- **Landing page** (next phase).
 - **Printable/PDF receipts**: receipts exist as data (receipt number, issued date) shown inline on the invoice; a dedicated printable/PDF view is a later nice-to-have.
 - **Phone/OTP login**: only email+password exists; the Credentials provider is structured so this is additive, not a rewrite.
 - **Rate limiting, upload hardening, CSP**: flagged as TODO — real work starts once file uploads (maintenance/meter photos) are introduced.
+- **Outstanding-balances CSV import**: still deferred from Phase 2/CSV import — see above.
 
 ## Roadmap
 
@@ -115,6 +119,6 @@ pnpm dev
 3. ~~CSV import~~ — bulk import for properties/units and residents/occupancy/vehicles.
 4. ~~Visitors & Gate Mode~~ — QR/PIN visitor passes, security check-in/out, override with reason.
 5. ~~Maintenance & vendor workflow~~ — tickets, assignment, status workflow, vendor directory, resident confirmation.
-6. ~~Utilities~~ — manual meter management, consumption-based billing reusing the existing Invoice/Payment pipeline. **(this phase)**
-7. Announcements/notifications, outstanding-balances import.
-8. Platform super-admin portal (subscriptions/pricing), public landing page.
+6. ~~Utilities~~ — manual meter management, consumption-based billing reusing the existing Invoice/Payment pipeline.
+7. ~~Announcements & notifications~~ — targeted announcements, in-app notification inbox, multi-channel dispatch architecture. **(this phase)**
+8. Platform super-admin portal (subscriptions/pricing), public landing page, outstanding-balances import.

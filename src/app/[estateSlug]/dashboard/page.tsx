@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Role } from "@prisma/client";
-import { Button, Card } from "@/components/shared/ui";
+import { Badge, Button, Card } from "@/components/shared/ui";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstateMember } from "@/server/auth/session";
 import { prisma } from "@/server/db/client";
@@ -9,6 +9,7 @@ import { getFinanceSummary, getResidentOutstandingBalanceKobo } from "@/server/m
 import { getResidentByUserId } from "@/server/modules/residents/service";
 import { countCurrentlyCheckedIn } from "@/server/modules/visitors/service";
 import { getMaintenanceSummary } from "@/server/modules/maintenance/service";
+import { countUnreadNotifications } from "@/server/modules/announcements/service";
 
 async function AdminOverview({ estateId }: { estateId: string }) {
   const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary, checkedInCount, maintenanceSummary] =
@@ -101,16 +102,27 @@ async function ResidentOverview({ estateId, estateSlug, userId }: { estateId: st
     );
   }
 
-  const outstandingKobo = await getResidentOutstandingBalanceKobo(estateId, resident.id);
+  const [outstandingKobo, unreadCount] = await Promise.all([
+    getResidentOutstandingBalanceKobo(estateId, resident.id),
+    countUnreadNotifications(estateId, resident.id),
+  ]);
 
   return (
-    <Card>
-      <p className="text-sm text-slate-500">Outstanding balance</p>
-      <p className="mt-1 text-3xl font-semibold">{formatNaira(outstandingKobo)}</p>
-      <Link href={`/${estateSlug}/my/bills`}>
-        <Button className="mt-4 w-full">{outstandingKobo > 0 ? "Pay now" : "View bills"}</Button>
+    <div className="space-y-4">
+      <Card>
+        <p className="text-sm text-slate-500">Outstanding balance</p>
+        <p className="mt-1 text-3xl font-semibold">{formatNaira(outstandingKobo)}</p>
+        <Link href={`/${estateSlug}/my/bills`}>
+          <Button className="mt-4 w-full">{outstandingKobo > 0 ? "Pay now" : "View bills"}</Button>
+        </Link>
+      </Card>
+      <Link href={`/${estateSlug}/notifications`}>
+        <Card className="flex items-center justify-between transition-shadow hover:shadow-md">
+          <p className="text-sm text-slate-600">Notifications</p>
+          {unreadCount > 0 ? <Badge tone="warning">{unreadCount} new</Badge> : <Badge>Up to date</Badge>}
+        </Card>
       </Link>
-    </Card>
+    </div>
   );
 }
 
