@@ -3,10 +3,11 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/shared/ui";
 import { getCurrentUser } from "@/server/auth/session";
 import { listMembershipsForUser } from "@/server/modules/estates/service";
+import { LandingPage } from "./LandingPage";
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) return <LandingPage />;
   if (user.isPlatformAdmin) redirect("/platform");
 
   const memberships = await listMembershipsForUser(user.id);
