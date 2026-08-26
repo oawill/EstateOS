@@ -1,65 +1,39 @@
-import { Badge, Button, Card } from "@/components/shared/ui";
+import { Card } from "@/components/shared/ui";
+import { formatNaira } from "@/lib/utils";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
-import { listAllEstates } from "@/server/modules/platform/service";
-import { toggleEstateStatusAction } from "./actions";
+import { getPlatformSummary } from "@/server/modules/platform/service";
 
-const STATUS_TONE = {
-  TRIAL: "neutral",
-  ACTIVE: "success",
-  PAST_DUE: "warning",
-  SUSPENDED: "danger",
-  CANCELLED: "danger",
-} as const;
-
-export default async function PlatformEstatesPage() {
+export default async function PlatformDashboardPage() {
   await guardPage(() => requirePlatformAdmin());
-  const estates = await listAllEstates();
+  const summary = await getPlatformSummary();
+
+  const tiles: [string, string | number][] = [
+    ["Active estates", summary.activeCount],
+    ["Trial estates", summary.trialCount],
+    ["Suspended estates", summary.suspendedCount],
+    ["Past due estates", summary.pastDueCount],
+    ["Total estates", summary.totalEstates],
+    ["Total residents", summary.totalResidents],
+    ["Total properties", summary.totalProperties],
+    ["Projected MRR", formatNaira(summary.projectedMrrKobo)],
+  ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Estates</h1>
-      <div className="space-y-3">
-        {estates.map((estate) => (
-          <Card key={estate.id}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-medium">{estate.name}</p>
-                <p className="mt-0.5 text-sm text-slate-500">
-                  {estate._count.members} members · {estate._count.residents} residents ·{" "}
-                  {estate._count.properties} properties
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Badge tone={STATUS_TONE[estate.subscriptionStatus]}>{estate.subscriptionStatus}</Badge>
-                {estate.subscriptionStatus === "SUSPENDED" ? (
-                  <form
-                    action={async () => {
-                      "use server";
-                      await toggleEstateStatusAction(estate.id, "ACTIVE");
-                    }}
-                  >
-                    <Button type="submit" variant="secondary">
-                      Reactivate
-                    </Button>
-                  </form>
-                ) : (
-                  <form
-                    action={async () => {
-                      "use server";
-                      await toggleEstateStatusAction(estate.id, "SUSPENDED");
-                    }}
-                  >
-                    <Button type="submit" variant="danger">
-                      Suspend
-                    </Button>
-                  </form>
-                )}
-              </div>
-            </div>
+      <h1 className="text-xl font-semibold">Dashboard</h1>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {tiles.map(([label, value]) => (
+          <Card key={label}>
+            <p className="text-sm text-slate-500">{label}</p>
+            <p className="mt-1 text-2xl font-semibold">{value}</p>
           </Card>
         ))}
       </div>
+      <p className="text-xs text-slate-500">
+        Projected MRR is the sum of monthly plan prices for active estates with a plan assigned — it does not reflect
+        actual billing or collection.
+      </p>
     </div>
   );
 }

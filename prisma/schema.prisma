@@ -175,6 +175,28 @@ model User {
 }
 
 // ---------------------------------------------------------------------------
+// Platform & Plans
+// ---------------------------------------------------------------------------
+
+// Deliberately simple: no machine-enforced per-feature entitlement engine,
+// since nothing in the app gates functionality by plan today except
+// unitLimit (see createProperty in properties/service.ts). featureSummary
+// is descriptive only. Pricing is per the spec's "finalize pricing later" —
+// this just makes it configurable rather than hard-coded.
+model Plan {
+  id               String   @id @default(cuid())
+  name             String
+  monthlyPriceKobo Int
+  annualPriceKobo  Int?
+  unitLimit        Int? // null = unlimited
+  featureSummary   String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  estates Estate[]
+}
+
+// ---------------------------------------------------------------------------
 // Tenant root
 // ---------------------------------------------------------------------------
 
@@ -190,9 +212,11 @@ model Estate {
   contactPhone       String?
   subscriptionStatus SubscriptionStatus @default(TRIAL)
   planId             String?
+  trialEndsAt        DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
+  plan       Plan?          @relation(fields: [planId], references: [id])
   members    EstateMember[]
   blocks     Block[]
   streets    Street[]

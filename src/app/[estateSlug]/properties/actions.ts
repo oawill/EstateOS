@@ -34,7 +34,12 @@ export async function createPropertyAction(
     return { error: "Please check the property details." };
   }
 
-  await createProperty(membership.estateId, user.id, parsed.data);
+  try {
+    await createProperty(membership.estateId, user.id, parsed.data);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't create that property." };
+  }
+
   revalidatePath(`/${estateSlug}/properties`);
   redirect(`/${estateSlug}/properties`);
 }

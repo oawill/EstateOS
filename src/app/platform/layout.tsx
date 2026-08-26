@@ -1,7 +1,16 @@
 import Image from "next/image";
+import Link from "next/link";
 import { signOut } from "@/server/auth/config";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
+
+const NAV = [
+  { href: "/platform", label: "Dashboard" },
+  { href: "/platform/estates", label: "Estates" },
+  { href: "/platform/plans", label: "Plans" },
+  { href: "/platform/users", label: "Users" },
+  { href: "/platform/audit", label: "Audit" },
+];
 
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const user = await guardPage(() => requirePlatformAdmin());
@@ -28,6 +37,17 @@ export default async function PlatformLayout({ children }: { children: React.Rea
             </button>
           </form>
         </div>
+        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-2">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
     </div>
