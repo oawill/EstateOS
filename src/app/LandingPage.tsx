@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button, Card } from "@/components/shared/ui";
+import { Footer } from "@/components/shared/Footer";
 
 const FEATURES = [
   {
@@ -136,14 +137,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-6 text-sm text-foreground-muted">
-          <p>© {new Date().getFullYear()} EstateOS</p>
-          <Link href="/login" className="font-medium text-foreground-muted hover:text-foreground">
-            Sign in
-          </Link>
-        </div>
-      </footer>
+      <Footer />
     </main>
   );
 }
