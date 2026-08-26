@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { type ButtonHTMLAttributes, type InputHTMLAttributes, type LabelHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 function cn(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -55,6 +55,28 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
       className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
       {...props}
     />
+  );
+}
+
+export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className="w-full rounded-lg border border-border px-3 py-2.5 text-sm text-foreground placeholder:text-foreground-muted focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+      {...props}
+    />
+  );
+}
+
+export function Checkbox({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 text-sm text-foreground">
+      <input
+        type="checkbox"
+        className="mt-0.5 h-4 w-4 rounded border-border text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        {...props}
+      />
+      <span>{label}</span>
+    </label>
   );
 }
 

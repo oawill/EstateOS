@@ -2,7 +2,7 @@
 
 The operating system for modern Nigerian estates. Multi-tenant SaaS for estate management: billing, payments, visitors, security, maintenance, utilities, and announcements — one platform per estate, isolated by tenant.
 
-This is **Phase 1 + Phase 2 + CSV import + Visitors/Gate Mode + Maintenance & vendors + Utilities + Announcements & notifications + Platform super-admin portal + Public landing page**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, the core billing/payments loop (charges → invoices → payment → receipt), bulk CSV import, visitor management (QR/PIN passes, gate check-in/out), the maintenance workflow (report → assign → resolve → confirm), manual utility meter billing, estate announcements with an in-app notification inbox, a platform super-admin portal (estate dashboard, plans/pricing config with enforced unit limits, cross-tenant audit and user views), and a public marketing page for signed-out visitors. See [Roadmap](#roadmap) for what's left.
+This is **Phase 1 + Phase 2 + CSV import + Visitors/Gate Mode + Maintenance & vendors + Utilities + Announcements & notifications + Platform super-admin portal + Public landing page + Request a Demo**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, the core billing/payments loop (charges → invoices → payment → receipt), bulk CSV import, visitor management (QR/PIN passes, gate check-in/out), the maintenance workflow (report → assign → resolve → confirm), manual utility meter billing, estate announcements with an in-app notification inbox, a platform super-admin portal (estate dashboard, plans/pricing config with enforced unit limits, cross-tenant audit and user views), a public marketing page for signed-out visitors, and a public "Request a Demo" workflow (multi-step form → database record → email notifications → Super Admin triage queue). See [Roadmap](#roadmap) for what's left.
 
 ## Stack
 
@@ -11,6 +11,7 @@ This is **Phase 1 + Phase 2 + CSV import + Visitors/Gate Mode + Maintenance & ve
 - **PostgreSQL** via **Prisma 7** (driver-adapter model — see `src/server/db/client.ts`)
 - **Auth.js v5** (Credentials provider, JWT sessions)
 - **Paystack** (card/bank transfer/USSD) + manual bank-transfer recording, for payments
+- **Resend** for transactional email (demo-request notifications) — optional, degrades gracefully without a key
 - **Vitest** for unit and integration tests
 
 ## Local setup
@@ -42,6 +43,8 @@ npx auth secret
 
 To exercise the Paystack payment path live, add `PAYSTACK_SECRET_KEY` / `PAYSTACK_PUBLIC_KEY` (test keys from your Paystack dashboard). Without them, "Pay with card / bank transfer" fails gracefully with a message pointing residents to the manual bank-transfer path instead — see [What's mocked or deferred](#whats-mocked-or-deferred-not-built-yet).
 
+To actually send demo-request notification emails, add `RESEND_API_KEY` (from your Resend dashboard) and `EMAIL_FROM` (a verified sending address). `CUSTOMER_SERVICE_EMAIL` is where the internal notification goes — set it even without a Resend key, so the destination is configured once you add one. Without `RESEND_API_KEY`, demo requests still save to the database; the emails are just skipped with a logged warning.
+
 ### 3. Install, migrate, seed
 
 ```bash
@@ -70,7 +73,7 @@ pnpm dev
 | `pnpm dev` / `pnpm build` / `pnpm start` | Next.js dev/build/start |
 | `pnpm lint` | ESLint |
 | `pnpm test` | Vitest unit tests (no DB required — tenant scoping, RBAC, sequence numbering, and Paystack signature verification are tested against mocks) |
-| `pnpm test:integration` | Vitest integration tests against the real dev database (payment idempotency, plan unit-limit enforcement, platform summary) |
+| `pnpm test:integration` | Vitest integration tests against the real dev database (payment idempotency, plan unit-limit enforcement, platform summary, demo-request creation/rate-limiting/audit logging) |
 | `pnpm db:generate` | Regenerate the Prisma client |
 | `pnpm db:migrate` | Run Prisma migrations |
 | `pnpm db:seed` | Seed demo data |
@@ -91,6 +94,7 @@ pnpm dev
 - **Public landing page**: `src/app/page.tsx` is a router, not just a page — it was already branching on auth state (platform admin → `/platform`, one estate → straight to its dashboard, multiple → an estate picker, no memberships → onboarding); the only change was giving its "no user" branch a real page (`src/app/LandingPage.tsx`) instead of an unconditional redirect to `/login`. Every other branch, and thus every pre-existing routing behavior, is unchanged. No pricing section — pricing is explicitly deferred (see below).
 - **Platform super-admin portal**: `Plan` is deliberately simple — name, monthly/annual price, an optional `unitLimit` (`null` = unlimited), a free-text `featureSummary`, and an `isActive` flag for retiring old plans without deleting history. Nothing in the app enforces plan-gated functionality except `unitLimit`, checked in `createProperty()` (`src/server/modules/properties/service.ts`, pure logic factored out as `wouldExceedUnitLimit()` for unit testing) before its unit-creation transaction commits — an estate with no plan, or a plan with no cap, stays unlimited. There is no real platform billing/collection from estates: the dashboard's "Projected MRR" is just the sum of monthly plan prices across `ACTIVE` estates with a plan assigned, not an actual invoice — same deferred treatment as Paystack's live keys. Platform-level audit rows (plan changes, subscription status changes) are written with `estateId: null` since they're not scoped to one tenant, which also means they intentionally don't show up in an individual estate's own recent-activity list on its detail page.
 - **Design tokens**: `src/app/globals.css` defines the brand palette as a Tailwind v4 `@theme` block (`--color-primary`, `--color-navy`, `--color-cyan`, `--color-success/warning/danger/info`, `--color-background/surface/surface-muted/border/foreground/foreground-muted`) — each auto-generates `bg-*`/`text-*`/`border-*` utilities. `src/components/shared/ui.tsx` (Button/Card/Input/Select/Label/FormError/Badge) is the single place these are consumed, so nearly every page inherits the palette without its own color classes. Status-color maps that used to be hand-duplicated across ~8 maintenance/billing/visitor files now live in `src/lib/statusTones.ts`. Light-mode only by design — no toggleable dark theme exists; surfaces meant to read as "premium dark" (platform-admin nav, the landing page hero/header) use the `navy`/`gradient-premium` tokens directly instead.
+- **Request a Demo**: a public, unauthenticated `/request-demo` route — deliberately not routed through the existing `Notification`/`dispatchNotification()` machinery, since that system assumes a tenant `estateId` and a `residentId` neither of which exist for an anonymous prospect. `DemoRequest` is its own top-level model with real Postgres enum arrays (`ManagementMethod[]`, `ChallengeArea[]`, `FeatureInterest[]`) for its multi-select fields rather than a `Json` blob, matching the rest of the schema's enum conventions and making the admin list/filter UI possible without parsing. Reference numbers (`DEMO-000001`) come from a new `PlatformSequence` — a minimal atomic counter — rather than the existing `EstateSequence`, whose `estateId` is a required FK that a non-tenant concept can't satisfy without a schema hack. Spam/abuse protection is three layers, all built from what already exists (no new paid service): a honeypot field (silently no-ops, no DB write, no signal to the bot), a minimum-elapsed-time check (`isSubmittedTooFast()`), and a real DB-backed IP rate limit (`ipHash` — an HMAC-SHA256 of the request IP keyed by `AUTH_SECRET`, same secret-reuse pattern the visitor QR token already uses — never the raw IP). Both notification emails (`src/server/modules/demoRequests/email.ts`) are wrapped so a Resend outage or missing `RESEND_API_KEY`/`CUSTOMER_SERVICE_EMAIL` only skips the email (logged) — the database write that already happened is never rolled back or lost. Admin mutations (status, staff assignment, internal notes, recording a confirmed demo date) go through the same fetch-before → update → `recordAudit()` pattern as the rest of the platform module, so the audit log doubles as the "follow-up activity" history the spec asks for — no separate activity-log model. Internal notes are only ever queried on the `requirePlatformAdmin()`-gated detail page, never rendered anywhere a prospect could see them.
 - **Announcements & notifications**: `Notification` is deliberately not announcement-only — `announcementId` is nullable, so the same table/dispatcher can later carry a payment-confirmation or visitor-checked-in notification without a schema change; this is the shared multi-channel event system the original spec calls for, not an announcements-specific inbox. A small `NotificationChannel` interface (`src/server/modules/notifications/channels.ts`) has one real implementation, `InAppChannel` — for in-app, the `Notification` row itself *is* the delivery. `dispatchNotification()` (`dispatch.ts`) is the single place that decides which channels run for a given notification (today just `IN_APP`), so adding WhatsApp/SMS/email later means writing that channel class and adding one line there, not touching every call site that creates a notification. Unlike billing's owner-then-tenant-only targeting, an announcement reaches *every current occupant* of a targeted unit — owner, tenant, and household members alike, since a power-outage notice should reach everyone living there.
 
 ## What's mocked or deferred (not built yet)
@@ -115,6 +119,8 @@ pnpm dev
 - **Phone/OTP login**: only email+password exists; the Credentials provider is structured so this is additive, not a rewrite.
 - **Rate limiting, upload hardening, CSP**: flagged as TODO — real work starts once file uploads (maintenance/meter photos) are introduced.
 - **Outstanding-balances CSV import**: still deferred from Phase 2/CSV import — see above.
+- **Demo-request emails without real credentials**: `RESEND_API_KEY`, `EMAIL_FROM`, and a verified sending domain in Resend are all needed for the customer-service and prospect confirmation emails to actually send — without them, submissions still save (see the Request a Demo architecture note above), but no email goes out.
+- **CAPTCHA on the demo-request form**: the honeypot + timing-check + DB-backed IP rate limit are real, functioning defenses, but a dedicated CAPTCHA/Turnstile provider would be a stronger layer if spam volume ever warrants it — not added now to avoid an unnecessary new paid dependency for a launch-stage feature.
 
 ## Roadmap
 
@@ -126,5 +132,6 @@ pnpm dev
 6. ~~Utilities~~ — manual meter management, consumption-based billing reusing the existing Invoice/Payment pipeline.
 7. ~~Announcements & notifications~~ — targeted announcements, in-app notification inbox, multi-channel dispatch architecture.
 8. ~~Platform super-admin portal~~ — platform dashboard, plans/pricing config with enforced unit limits, estate detail (status + plan assignment + trial tracking), cross-tenant audit and user views.
-9. ~~Public landing page~~ — marketing page for signed-out visitors, feature highlights, trust/architecture section. **(this phase)**
-10. Outstanding-balances import.
+9. ~~Public landing page~~ — marketing page for signed-out visitors, feature highlights, trust/architecture section.
+10. ~~Request a Demo~~ — public multi-step demo-request form, database record with a unique reference, customer-service + prospect confirmation emails via Resend, Super Admin triage queue with filters/status/assignment/notes. **(this phase)**
+11. Outstanding-balances import.

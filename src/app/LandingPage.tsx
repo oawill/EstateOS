@@ -65,7 +65,7 @@ export function LandingPage() {
               <Link href="/login" className="text-sm font-medium text-slate-200 hover:text-white">
                 Sign in
               </Link>
-              <Link href="/signup">
+              <Link href="/request-demo">
                 <Button type="button" className="!bg-white !text-navy hover:!bg-slate-100">
                   Request a Demo
                 </Button>
@@ -82,7 +82,7 @@ export function LandingPage() {
             Manage residents, payments, visitors, security, utilities, maintenance and communication with EstateOS.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
-            <Link href="/signup">
+            <Link href="/request-demo">
               <Button type="button" className="!bg-white !text-navy hover:!bg-slate-100">
                 Request a Demo
               </Button>
@@ -131,7 +131,7 @@ export function LandingPage() {
       <section className="mx-auto max-w-5xl px-4 py-20 text-center">
         <h2 className="text-2xl font-semibold tracking-tight">Ready to run your estate on EstateOS?</h2>
         <div className="mt-6">
-          <Link href="/signup">
+          <Link href="/request-demo">
             <Button type="button">Request a Demo</Button>
           </Link>
         </div>

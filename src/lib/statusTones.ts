@@ -1,4 +1,4 @@
-import type { InvoiceStatus, MaintenancePriority, MaintenanceStatus } from "@prisma/client";
+import type { DemoRequestStatus, InvoiceStatus, MaintenancePriority, MaintenanceStatus } from "@prisma/client";
 import type { EntryCodeStatus } from "@/server/modules/visitors/service";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
@@ -31,4 +31,14 @@ export const PRIORITY_TONE: Record<MaintenancePriority, Tone> = {
   HIGH: "warning",
   MEDIUM: "info",
   LOW: "neutral",
+};
+
+export const DEMO_REQUEST_STATUS_TONE: Record<DemoRequestStatus, Tone> = {
+  NEW: "info",
+  CONTACTED: "warning",
+  DEMO_SCHEDULED: "info",
+  DEMO_COMPLETED: "success",
+  PROPOSAL_SENT: "warning",
+  WON: "success",
+  LOST: "danger",
 };

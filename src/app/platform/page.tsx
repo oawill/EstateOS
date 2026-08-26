@@ -3,10 +3,11 @@ import { formatNaira } from "@/lib/utils";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
 import { getPlatformSummary } from "@/server/modules/platform/service";
+import { getNewDemoRequestCount } from "@/server/modules/demoRequests/service";
 
 export default async function PlatformDashboardPage() {
   await guardPage(() => requirePlatformAdmin());
-  const summary = await getPlatformSummary();
+  const [summary, newDemoRequestCount] = await Promise.all([getPlatformSummary(), getNewDemoRequestCount()]);
 
   const tiles: [string, string | number][] = [
     ["Active estates", summary.activeCount],
@@ -17,6 +18,7 @@ export default async function PlatformDashboardPage() {
     ["Total residents", summary.totalResidents],
     ["Total properties", summary.totalProperties],
     ["Projected MRR", formatNaira(summary.projectedMrrKobo)],
+    ["New demo requests", newDemoRequestCount],
   ];
 
   return (

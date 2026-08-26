@@ -152,6 +152,81 @@ enum NotificationStatus {
   FAILED
 }
 
+enum OrganizationType {
+  RESIDENTIAL_ESTATE
+  GATED_COMMUNITY
+  HOA_COMMUNITY_ASSOCIATION
+  CONDOMINIUM
+  APARTMENT_COMPLEX
+  PROPERTY_MANAGEMENT_COMPANY
+  FACILITY_MANAGEMENT_COMPANY
+  PROPERTY_DEVELOPER
+  SHORTLET_OPERATOR
+  MIXED_RESIDENTIAL_COMMUNITY
+  OTHER
+}
+
+enum PreferredContactMethod {
+  EMAIL
+  PHONE
+  WHATSAPP
+}
+
+enum ManagementMethod {
+  WHATSAPP
+  SPREADSHEETS
+  PAPER_RECORDS
+  BANK_RECONCILIATION
+  EXISTING_SOFTWARE
+  ACCOUNTING_SOFTWARE
+  OTHER
+}
+
+enum ChallengeArea {
+  SERVICE_CHARGES_COLLECTIONS
+  PAYMENT_RECONCILIATION
+  RESIDENT_MANAGEMENT
+  VISITOR_MANAGEMENT
+  GATE_SECURITY
+  MAINTENANCE_COMPLAINTS
+  ELECTRICITY_UTILITIES
+  WATER
+  DIESEL_GENERATOR
+  VENDOR_MANAGEMENT
+  ANNOUNCEMENTS_COMMUNICATION
+  SHORTLET_BOOKINGS
+  GUEST_CHECKIN_CHECKOUT
+  HOUSEKEEPING
+  REPORTING
+  OTHER
+}
+
+enum FeatureInterest {
+  BILLING_PAYMENTS
+  RESIDENTS_UNITS
+  VISITOR_QR_PIN
+  SECURITY_GATE_MODE
+  MAINTENANCE
+  UTILITIES
+  ANNOUNCEMENTS
+  VENDORS
+  SHORTLET_MANAGEMENT
+  REPORTING_ANALYTICS
+  WHATSAPP_NOTIFICATIONS
+  DATA_MIGRATION
+  MULTI_PROPERTY_MANAGEMENT
+}
+
+enum DemoRequestStatus {
+  NEW
+  CONTACTED
+  DEMO_SCHEDULED
+  DEMO_COMPLETED
+  PROPOSAL_SENT
+  WON
+  LOST
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -172,6 +247,7 @@ model User {
   residentLinks Resident[]
   auditLogs     AuditLog[]     @relation("ActorUser")
   assignedMaintenanceTickets MaintenanceTicket[] @relation("MaintenanceAssignee")
+  assignedDemoRequests       DemoRequest[]       @relation("DemoRequestAssignee")
 }
 
 // ---------------------------------------------------------------------------
@@ -194,6 +270,80 @@ model Plan {
   createdAt        DateTime @default(now())
 
   estates Estate[]
+}
+
+// ---------------------------------------------------------------------------
+// Demo Requests
+// ---------------------------------------------------------------------------
+
+// A minimal atomic counter for reference numbers that aren't scoped to an
+// estate (unlike EstateSequence, whose estateId FK is required) — same
+// upsert-with-increment pattern, see src/server/modules/demoRequests/sequence.ts.
+model PlatformSequence {
+  key   String @id
+  value Int    @default(0)
+}
+
+// A public-site "Request a Demo" submission. Deliberately not estate-scoped
+// (the prospect doesn't have an estate yet) and not routed through the
+// existing scoped()/Notification machinery, which assumes a tenant and a
+// resident — see src/server/modules/demoRequests/. Multi-select fields use
+// real Postgres enum arrays rather than Json, since these are fixed
+// vocabularies the admin UI needs to filter/report on, not free-form data.
+model DemoRequest {
+  id               String                  @id @default(cuid())
+  referenceNumber  String                  @unique
+
+  fullName         String
+  email            String
+  phone            String
+  preferredContactMethod PreferredContactMethod?
+  organizationName String
+  organizationType OrganizationType
+
+  country          String
+  region           String?
+  city             String
+  timezone         String?
+
+  numberOfEstates   Int?
+  numberOfUnits     Int
+  numberOfResidents Int?
+  shortletUnits     Int?
+
+  currentManagementMethods ManagementMethod[]
+  challenges               ChallengeArea[]
+  interestedFeatures       FeatureInterest[]
+
+  preferredDemoDate     DateTime?
+  preferredDemoTime     String?
+  alternateDemoDatetime String?
+  // Admin-set once a demo is actually arranged — distinct from the
+  // prospect's non-binding preference above (see spec: "Do not treat the
+  // requested time as a confirmed appointment").
+  scheduledDemoAt       DateTime?
+
+  currentSoftware  String?
+  primaryObjective String?
+  comments         String?
+  referralSource   String?
+  consent          Boolean
+
+  status           DemoRequestStatus @default(NEW)
+  assignedToUserId String?
+  // Admin-only working notes — never rendered on any prospect-facing page.
+  internalNotes    String?
+  // HMAC-SHA256 hash of the submitter's IP (see rateLimit.ts), used only to
+  // rate-limit repeat submissions — never stores the raw IP.
+  ipHash           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedTo User? @relation("DemoRequestAssignee", fields: [assignedToUserId], references: [id])
+
+  @@index([status])
+  @@index([ipHash, createdAt])
 }
 
 // ---------------------------------------------------------------------------
