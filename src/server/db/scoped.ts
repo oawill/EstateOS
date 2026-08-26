@@ -5,6 +5,7 @@ import type {
   Invoice,
   MaintenanceComment,
   MaintenanceTicket,
+  MeterReading,
   Payment,
   Prisma,
   Property,
@@ -12,6 +13,8 @@ import type {
   Resident,
   Street,
   Unit,
+  UtilityBill,
+  UtilityMeter,
   Vehicle,
   Vendor,
   VisitorPass,
@@ -208,6 +211,27 @@ export function scoped(estateId: string) {
       Omit<Prisma.MaintenanceCommentUncheckedCreateInput, "estateId" | "id" | "createdAt">,
       Prisma.MaintenanceCommentUpdateInput
     >(prisma.maintenanceComment, "MaintenanceComment", estateId),
+
+    utilityMeter: makeScopedDelegate<
+      Prisma.UtilityMeterWhereInput,
+      UtilityMeter,
+      Omit<Prisma.UtilityMeterUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.UtilityMeterUpdateInput
+    >(prisma.utilityMeter, "UtilityMeter", estateId),
+
+    meterReading: makeScopedDelegate<
+      Prisma.MeterReadingWhereInput,
+      MeterReading,
+      Omit<Prisma.MeterReadingUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.MeterReadingUpdateInput
+    >(prisma.meterReading, "MeterReading", estateId),
+
+    utilityBill: makeScopedDelegate<
+      Prisma.UtilityBillWhereInput,
+      UtilityBill,
+      Omit<Prisma.UtilityBillUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.UtilityBillUpdateInput
+    >(prisma.utilityBill, "UtilityBill", estateId),
   };
 }
 

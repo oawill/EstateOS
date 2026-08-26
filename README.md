@@ -2,7 +2,7 @@
 
 The operating system for modern Nigerian estates. Multi-tenant SaaS for estate management: billing, payments, visitors, security, maintenance, utilities, and announcements — one platform per estate, isolated by tenant.
 
-This is **Phase 1 + Phase 2 + CSV import + Visitors/Gate Mode + Maintenance & vendors**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, the core billing/payments loop (charges → invoices → payment → receipt), bulk CSV import, visitor management (QR/PIN passes, gate check-in/out), and the maintenance workflow (report → assign → resolve → confirm). Utilities and announcements are the next phases (see [Roadmap](#roadmap)).
+This is **Phase 1 + Phase 2 + CSV import + Visitors/Gate Mode + Maintenance & vendors + Utilities**: architecture, auth, multi-tenancy, RBAC, estate onboarding, properties/residents management, the core billing/payments loop (charges → invoices → payment → receipt), bulk CSV import, visitor management (QR/PIN passes, gate check-in/out), the maintenance workflow (report → assign → resolve → confirm), and manual utility meter billing. Announcements/notifications are next (see [Roadmap](#roadmap)).
 
 ## Stack
 
@@ -87,26 +87,26 @@ pnpm dev
 - **CSV import**: no file storage involved — a CSV is parsed client-side (`papaparse`) and the parsed rows travel through Server Actions as plain data. A **validate** action runs zod row-shape checks plus DB-backed checks (does this block/street/property exist? does this address already exist?) and returns every row annotated with its errors; the preview UI disables "Confirm Import" while any row has an error. **Confirm** re-validates from scratch server-side — the client's earlier pass is never trusted — then imports each row by calling the same `createProperty()` / `createResidentWithOccupancy()` / `addVehicle()` functions the manual "Add property"/"Add resident" forms use, so imported records get identical tenant scoping and audit logging for free. See `src/server/modules/imports/`.
 - **Visitors & Gate Mode**: a `VisitorPass` carries the visitor's identity fields directly (one invite = one visit occasion — no separate reusable visitor profile). Its QR code encodes `estateId.passId.signature` (HMAC-SHA256 over `estateId.passId`, reusing `AUTH_SECRET`) — verifying recomputes the signature server-side, so a tampered or guessed id fails before any DB lookup (`src/server/modules/visitors/token.ts`). The 6-digit backup PIN's uniqueness is time-scoped (only checked against currently-valid passes), not a permanent DB constraint, so the 1,000,000-combination space never gets permanently exhausted. Gate Mode's verification input is a plain autofocused text field, not a camera — this matches how cheap-Android gate setups actually work in practice (a USB/Bluetooth barcode-scanner "gun" just types into whatever's focused) and needs no camera/decode dependency. A `GateEntry` is a separate row per pass-through-the-gate (not a field on the pass itself), so "visitors currently checked in" is a direct query and the same pass can be used for multiple entries/exits within its window. Security can force an "override" check-in on an invalid/expired pass with a required reason, audited as `visitor.override_checkin`.
 - **Maintenance & vendors**: assignment fields (`assignedToUserId`, `vendorId`) live directly on `MaintenanceTicket` — no separate `WorkOrder` model, since nothing needs an assignment record with its own lifecycle independent of the ticket yet. `Vendor` is a directory entry `FACILITY_MANAGER` can attach for record-keeping, not a login — a vendor's own staff who need to see their assigned tickets are separate `User`s with `Role.VENDOR`. `MaintenanceComment` rows double as both the audit-style status-change log and the resident-visible progress timeline. "Overdue" uses a documented default SLA by priority (URGENT 24h / HIGH 72h / MEDIUM 7d / LOW 14d since creation, only while still `REPORTED`/`REVIEWED`) — not a real product policy, easy to make configurable later. When a ticket is marked `RESOLVED`, the resident's "Was your issue resolved?" answer either closes it or reopens it to `IN_PROGRESS` with their feedback visible to staff.
+- **Utilities**: a utility bill *is* an `Invoice` — generating one from a meter reading creates a one-off `Charge` (for the audit/grouping record) plus a single `Invoice` for that unit's current resident, directly (not through the multi-unit charge-targeting resolution, since a reading is inherently for one specific unit). This means Paystack, manual bank-transfer recording, receipts, and the finance dashboard all work for utility bills with no extra code. `MeterReading.previousReading` auto-copies from the meter's last reading rather than being typed in each time; a meter's first-ever reading only establishes a baseline (no bill) since there's nothing yet to compare it against. A reading on a vacant unit is still recorded but generates no bill, surfaced to facility staff rather than silently dropped. Manual entry only — the schema doesn't assume how a reading arrives, so a future smart-meter feed would be a new reading-creation path, not a rewrite.
 
 ## What's mocked or deferred (not built yet)
 
 - **Paystack live verification**: the initialize call and webhook handling are fully implemented (signature verification, idempotency), but need real Paystack test keys to exercise live — see `PAYSTACK_SECRET_KEY` above. Webhooks also can't reach `localhost`; use ngrok or Paystack's dashboard webhook-replay tool.
 - **Outstanding-balances / opening-arrears CSV import**: deferred — importing historical arrears as invoices needs a design decision (a nullable `chargeId`, or an auto-created "Opening Balance" charge per import) that properties/residents import didn't need.
-- **Meter-information import**: nothing to import into yet — no utilities module.
+- **Meter-information CSV import**: no bulk import for meters yet — add them one at a time on `/utilities`.
 - **CSV import update-in-place**: a row colliding with an existing record (same address, etc.) is flagged as an error and skipped, never overwritten. No bulk-update mode in this pass.
-- **Outstanding-balances / opening-arrears CSV import**: deferred — importing historical arrears as invoices needs a design decision (a nullable `chargeId`, or an auto-created "Opening Balance" charge per import) that properties/residents import didn't need.
-- **Meter-information import**: nothing to import into yet — no utilities module.
 - **Live camera QR scanning**: Gate Mode accepts a scanned/typed code via a plain text input (works with barcode-scanner hardware or manual PIN entry) rather than `getUserMedia` + an in-browser QR decoder — a documented future enhancement, not needed for the core verification flow to work correctly.
 - **Estate-wide visitor management for admins**: `ESTATE_ADMIN` has the `visitors:*` permission for this already, but there's no admin UI yet to view/revoke any resident's pass — only residents can see their own.
 - **Maintenance photo/video attachments**: tickets ship with category, description, location, and priority — no file storage yet, same treatment as Paystack's live keys.
 - **Maintenance SLA policy**: the priority-based overdue thresholds are a reasonable default, not a real product decision — no configuration UI to change them per estate yet.
-- **Utilities**: manual meter readings and bill generation don't exist yet.
+- **Smart-meter / third-party utility integration**: meters and readings are manual-entry only by design — see the Utilities architecture note above for how an automated feed would plug in later.
+- **Utility meter photo evidence**: not captured yet — same file-storage dependency as maintenance photos.
 - **Announcements & notifications** (next phase): the `notifications` table and multi-channel (WhatsApp/SMS/email) dispatch don't exist yet.
 - **Platform super-admin billing** (later phase): plans/pricing config, platform revenue.
 - **Landing page** (later phase).
 - **Printable/PDF receipts**: receipts exist as data (receipt number, issued date) shown inline on the invoice; a dedicated printable/PDF view is a later nice-to-have.
 - **Phone/OTP login**: only email+password exists; the Credentials provider is structured so this is additive, not a rewrite.
-- **Rate limiting, upload hardening, CSP**: flagged as TODO — real work starts once file uploads (maintenance photos) are introduced.
+- **Rate limiting, upload hardening, CSP**: flagged as TODO — real work starts once file uploads (maintenance/meter photos) are introduced.
 
 ## Roadmap
 
@@ -114,6 +114,7 @@ pnpm dev
 2. ~~Billing & payments~~ — charges, invoice generation, Paystack + manual payments, receipts, finance dashboard.
 3. ~~CSV import~~ — bulk import for properties/units and residents/occupancy/vehicles.
 4. ~~Visitors & Gate Mode~~ — QR/PIN visitor passes, security check-in/out, override with reason.
-5. ~~Maintenance & vendor workflow~~ — tickets, assignment, status workflow, vendor directory, resident confirmation. **(this phase)**
-6. Utilities, announcements/notifications, outstanding-balances import.
-7. Platform super-admin portal (subscriptions/pricing), public landing page.
+5. ~~Maintenance & vendor workflow~~ — tickets, assignment, status workflow, vendor directory, resident confirmation.
+6. ~~Utilities~~ — manual meter management, consumption-based billing reusing the existing Invoice/Payment pipeline. **(this phase)**
+7. Announcements/notifications, outstanding-balances import.
+8. Platform super-admin portal (subscriptions/pricing), public landing page.

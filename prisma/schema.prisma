@@ -179,6 +179,9 @@ model Estate {
   vendors             Vendor[]
   maintenanceTickets  MaintenanceTicket[]
   maintenanceComments MaintenanceComment[]
+  utilityMeters   UtilityMeter[]
+  meterReadings   MeterReading[]
+  utilityBills    UtilityBill[]
 
   @@index([subscriptionStatus])
 }
@@ -280,6 +283,7 @@ model Unit {
   property    Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   occupancies Occupancy[]
   invoices    Invoice[]
+  utilityMeters UtilityMeter[]
 
   @@index([estateId])
   @@index([propertyId])
@@ -409,11 +413,12 @@ model Invoice {
   status        InvoiceStatus @default(PENDING)
   createdAt     DateTime      @default(now())
 
-  estate   Estate    @relation(fields: [estateId], references: [id], onDelete: Cascade)
-  charge   Charge    @relation(fields: [chargeId], references: [id], onDelete: Cascade)
-  unit     Unit      @relation(fields: [unitId], references: [id])
-  resident Resident? @relation(fields: [residentId], references: [id])
-  payments Payment[]
+  estate      Estate       @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  charge      Charge       @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  unit        Unit         @relation(fields: [unitId], references: [id])
+  resident    Resident?    @relation(fields: [residentId], references: [id])
+  payments    Payment[]
+  utilityBill UtilityBill?
 
   @@unique([estateId, invoiceNumber])
   @@index([estateId])
@@ -589,6 +594,73 @@ model MaintenanceComment {
 
   @@index([estateId])
   @@index([ticketId])
+}
+
+// ---------------------------------------------------------------------------
+// Utilities (manual meter billing)
+// ---------------------------------------------------------------------------
+
+// Manual-entry only — the schema doesn't assume anything about how a
+// reading arrives, so a future automated/smart-meter feed is additive (a
+// new reading-creation path), not a rewrite.
+model UtilityMeter {
+  id          String     @id @default(cuid())
+  estateId    String
+  unitId      String
+  utilityType ChargeType // constrained to ELECTRICITY | WATER in the zod schema
+  meterNumber String
+  rateKobo    Int // price per consumption unit
+  createdAt   DateTime   @default(now())
+
+  estate   Estate         @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  unit     Unit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  readings MeterReading[]
+
+  @@index([estateId])
+  @@index([unitId])
+}
+
+// previousReading auto-copies from this meter's last reading rather than
+// being typed in each time — immutable history, no re-entry risk. Null
+// only for a meter's very first reading, which just establishes a
+// baseline (no bill is generated until a second reading exists).
+model MeterReading {
+  id              String   @id @default(cuid())
+  estateId        String
+  meterId         String
+  previousReading Int?
+  currentReading  Int
+  readingDate     DateTime
+  recordedByUserId String
+  createdAt       DateTime @default(now())
+
+  estate Estate        @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  meter  UtilityMeter  @relation(fields: [meterId], references: [id], onDelete: Cascade)
+  bill   UtilityBill?
+
+  @@index([estateId])
+  @@index([meterId])
+}
+
+// Ties a reading to the Invoice it generated. The bill IS an Invoice
+// (reusing Paystack/manual payment/receipts/finance-dashboard rather than
+// a parallel payment path) — this row just keeps the utility-specific
+// consumption/rate detail alongside that Invoice.
+model UtilityBill {
+  id             String   @id @default(cuid())
+  estateId       String
+  meterReadingId String   @unique
+  invoiceId      String   @unique
+  consumption    Int
+  rateKobo       Int
+  amountKobo     Int
+  createdAt      DateTime @default(now())
+
+  estate       Estate       @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  meterReading MeterReading @relation(fields: [meterReadingId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([estateId])
 }
 
 // ---------------------------------------------------------------------------

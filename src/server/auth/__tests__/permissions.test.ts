@@ -32,6 +32,9 @@ describe("RBAC permission map", () => {
     expect(hasPermission(Role.ESTATE_ADMIN, "properties:*")).toBe(true);
     expect(hasPermission(Role.ESTATE_ADMIN, "residents:*")).toBe(true);
     expect(hasPermission(Role.ESTATE_ADMIN, "billing:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "maintenance:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "utilities:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "vendors:*")).toBe(true);
     expect(hasPermission(Role.ESTATE_ADMIN, "platform:*")).toBe(false);
   });
 

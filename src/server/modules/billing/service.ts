@@ -41,7 +41,7 @@ async function resolveTargetUnitIds(
 }
 
 /** Prefers the current owner, falls back to a tenant; household members aren't billed. */
-async function currentBillableResidentId(
+export async function currentBillableResidentId(
   client: { occupancy: { findMany(args: unknown): Promise<{ role: string; residentId: string }[]> } },
   unitId: string,
 ): Promise<string | null> {

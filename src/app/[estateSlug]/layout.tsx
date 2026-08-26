@@ -12,6 +12,7 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
     { href: "residents", label: "Residents" },
     { href: "billing", label: "Billing" },
     { href: "facility", label: "Facility" },
+    { href: "utilities", label: "Utilities" },
     { href: "import", label: "Import" },
     { href: "settings", label: "Settings" },
   ],
@@ -22,12 +23,14 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
   [Role.FACILITY_MANAGER]: [
     { href: "dashboard", label: "Dashboard" },
     { href: "facility", label: "Facility" },
+    { href: "utilities", label: "Utilities" },
   ],
   [Role.SECURITY]: [{ href: "gate", label: "Gate" }],
   [Role.RESIDENT]: [
     { href: "dashboard", label: "Home" },
     { href: "visitors", label: "Visitors" },
     { href: "maintenance", label: "Maintenance" },
+    { href: "my/utilities", label: "Utilities" },
     { href: "my/bills", label: "My Bills" },
   ],
   [Role.VENDOR]: [{ href: "jobs", label: "My Jobs" }],

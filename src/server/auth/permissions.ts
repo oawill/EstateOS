@@ -54,6 +54,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "payments:*",
     "receipts:*",
     "maintenance:*",
+    "utilities:*",
+    "vendors:*",
     "visitors:*",
     "announcements:*",
     "members:*",
