@@ -4,15 +4,9 @@ import { formatDate } from "@/lib/utils";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { NotFoundError } from "@/lib/errors";
+import { VISITOR_PASS_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
 import { getResidentByUserId } from "@/server/modules/residents/service";
 import { listPassesForResident, passStatus } from "@/server/modules/visitors/service";
-
-const STATUS_TONE = {
-  VALID: "success",
-  NOT_YET_STARTED: "neutral",
-  EXPIRED: "danger",
-  REVOKED: "danger",
-} as const;
 
 export default async function VisitorsPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;

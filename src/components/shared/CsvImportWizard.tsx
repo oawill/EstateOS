@@ -124,14 +124,16 @@ export function CsvImportWizard<T extends Record<string, unknown>>({
     return (
       <Card>
         <h2 className="font-medium">Import complete</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          {result.succeeded} {entityLabel} imported successfully.
-        </p>
+        {result.succeeded > 0 && (
+          <p className="mt-2 text-sm font-medium text-success">
+            {result.succeeded} {entityLabel} imported successfully.
+          </p>
+        )}
         {result.failed.length > 0 && (
           <div className="mt-3 space-y-1">
-            <p className="text-sm font-medium text-red-700">{result.failed.length} row(s) failed:</p>
+            <p className="text-sm font-medium text-danger">{result.failed.length} row(s) failed:</p>
             {result.failed.map((f) => (
-              <p key={f.rowNumber} className="text-sm text-red-600">
+              <p key={f.rowNumber} className="text-sm text-danger">
                 Row {f.rowNumber}: {f.error}
               </p>
             ))}
@@ -149,13 +151,13 @@ export function CsvImportWizard<T extends Record<string, unknown>>({
       <Card>
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Preview</h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-foreground-muted">
             {validatedRows.length} rows · {errorCount > 0 ? `${errorCount} with errors` : "all valid"}
           </p>
         </div>
-        <div className="mt-4 max-h-96 overflow-auto rounded-lg border border-slate-200">
+        <div className="mt-4 max-h-96 overflow-auto rounded-lg border border-border">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+            <thead className="bg-surface-muted text-xs uppercase text-foreground-muted">
               <tr>
                 <th className="px-3 py-2">Row</th>
                 {columns.map((c) => (
@@ -168,20 +170,20 @@ export function CsvImportWizard<T extends Record<string, unknown>>({
             </thead>
             <tbody>
               {validatedRows.map((row) => (
-                <tr key={row.rowNumber} className={row.errors.length > 0 ? "bg-red-50" : "border-t border-slate-100"}>
-                  <td className="px-3 py-2 text-slate-500">{row.rowNumber}</td>
+                <tr key={row.rowNumber} className={row.errors.length > 0 ? "bg-danger/10" : "border-t border-border"}>
+                  <td className="px-3 py-2 text-foreground-muted">{row.rowNumber}</td>
                   {columns.map((c) => (
                     <td key={String(c.key)} className="px-3 py-2">
                       {displayValue(row.data[c.key])}
                     </td>
                   ))}
-                  <td className="px-3 py-2 text-red-700">{row.errors.join("; ")}</td>
+                  <td className="px-3 py-2 text-danger">{row.errors.join("; ")}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-3 text-sm text-danger">{error}</p>}
         <div className="mt-4 flex gap-2">
           <Button onClick={confirmImport} disabled={pending || errorCount > 0}>
             {pending ? "Importing…" : `Confirm import (${validatedRows.length})`}
@@ -191,7 +193,7 @@ export function CsvImportWizard<T extends Record<string, unknown>>({
           </Button>
         </div>
         {errorCount > 0 && (
-          <p className="mt-2 text-sm text-slate-500">Fix the rows above in your CSV and re-upload to continue.</p>
+          <p className="mt-2 text-sm text-foreground-muted">Fix the rows above in your CSV and re-upload to continue.</p>
         )}
       </Card>
     );
@@ -201,25 +203,25 @@ export function CsvImportWizard<T extends Record<string, unknown>>({
     <Card>
       <div className="flex items-center justify-between">
         <h2 className="font-medium">Upload CSV</h2>
-        <button type="button" onClick={downloadTemplate} className="text-sm text-slate-600 underline underline-offset-4">
+        <button type="button" onClick={downloadTemplate} className="text-sm text-primary underline underline-offset-4">
           Download template
         </button>
       </div>
-      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
       <div className="mt-4 space-y-3">
         <input
           ref={fileInputRef}
           type="file"
           accept=".csv,text/csv"
-          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
+          className="block w-full text-sm text-foreground-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
         />
-        <p className="text-center text-xs text-slate-400">— or paste CSV content —</p>
+        <p className="text-center text-xs text-foreground-muted">— or paste CSV content —</p>
         <textarea
           value={pasted}
           onChange={(e) => setPasted(e.target.value)}
           rows={6}
           placeholder="addressLabel,propertyType,..."
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs"
+          className="w-full rounded-lg border border-border px-3 py-2 font-mono text-xs"
         />
       </div>
       <Button className="mt-4" onClick={parseAndValidate} disabled={pending}>

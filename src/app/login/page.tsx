@@ -10,14 +10,14 @@ export default function LoginPage() {
         <div className="text-center">
           <Image src="/logo.png" alt="EstateOS" width={56} height={56} className="mx-auto rounded-xl" priority />
           <h1 className="mt-3 text-2xl font-semibold tracking-tight">EstateOS</h1>
-          <p className="mt-1 text-sm text-slate-500">Sign in to your estate</p>
+          <p className="mt-1 text-sm text-foreground-muted">Sign in to your estate</p>
         </div>
         <Card>
           <LoginForm />
         </Card>
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-foreground-muted">
           New estate?{" "}
-          <Link href="/signup" className="font-medium text-slate-900 underline underline-offset-4">
+          <Link href="/signup" className="font-medium text-primary underline underline-offset-4">
             Create an account
           </Link>
         </p>

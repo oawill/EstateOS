@@ -3,17 +3,9 @@ import { Badge, Button, Card, Input, Label, Select } from "@/components/shared/u
 import { formatDate } from "@/lib/utils";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
+import { TICKET_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
 import { getMaintenanceSummary, isOverdue, listAllTickets, listVendors } from "@/server/modules/maintenance/service";
 import { createVendorAction } from "./actions";
-
-const STATUS_TONE = {
-  REPORTED: "neutral",
-  REVIEWED: "neutral",
-  ASSIGNED: "warning",
-  IN_PROGRESS: "warning",
-  RESOLVED: "success",
-  CLOSED: "success",
-} as const;
 
 const CATEGORIES = [
   "ELECTRICITY",
@@ -72,7 +64,7 @@ export default async function FacilityPage({ params }: { params: Promise<{ estat
                     <p className="mt-0.5 text-sm text-slate-500 line-clamp-1">{ticket.description}</p>
                     <p className="mt-1 text-xs text-slate-400">
                       {ticket.resident.firstName} {ticket.resident.lastName} · {formatDate(ticket.createdAt)}
-                      {isOverdue(ticket) ? " · OVERDUE" : ""}
+                      {isOverdue(ticket) && <span className="font-medium text-danger"> · OVERDUE</span>}
                     </p>
                   </div>
                   <Badge tone={STATUS_TONE[ticket.status]}>{ticket.status.replaceAll("_", " ")}</Badge>

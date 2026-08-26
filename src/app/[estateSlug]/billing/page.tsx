@@ -1,17 +1,12 @@
 import Link from "next/link";
 import { Badge, Button, Card } from "@/components/shared/ui";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { formatDate, formatNaira } from "@/lib/utils";
+import { INVOICE_STATUS_TONE } from "@/lib/statusTones";
 import { getFinanceSummary, listCharges, listInvoices, listPendingManualPayments } from "@/server/modules/billing/service";
 import { approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
-
-const INVOICE_STATUS_TONE = {
-  PENDING: "neutral",
-  PARTIALLY_PAID: "warning",
-  PAID: "success",
-  CANCELLED: "danger",
-} as const;
 
 export default async function BillingPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
@@ -34,21 +29,11 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        {[
-          ["Collected today", summary.collectionsTodayKobo],
-          ["Collected this month", summary.collectionsThisMonthKobo],
-          ["Collected this year", summary.collectionsThisYearKobo],
-          ["Outstanding", summary.outstandingKobo],
-        ].map(([label, kobo]) => (
-          <Card key={label as string}>
-            <p className="text-lg font-semibold">{formatNaira(kobo as number)}</p>
-            <p className="mt-1 text-sm text-slate-500">{label}</p>
-          </Card>
-        ))}
-        <Card>
-          <p className="text-lg font-semibold">{summary.overdueCount}</p>
-          <p className="mt-1 text-sm text-slate-500">Overdue invoices</p>
-        </Card>
+        <KpiCard tone="success" label="Collected today" value={formatNaira(summary.collectionsTodayKobo)} />
+        <KpiCard tone="success" label="Collected this month" value={formatNaira(summary.collectionsThisMonthKobo)} />
+        <KpiCard tone="success" label="Collected this year" value={formatNaira(summary.collectionsThisYearKobo)} />
+        <KpiCard tone="warning" label="Outstanding" value={formatNaira(summary.outstandingKobo)} />
+        <KpiCard tone="danger" label="Overdue invoices" value={summary.overdueCount} />
       </div>
 
       {pendingManualPayments.length > 0 && (

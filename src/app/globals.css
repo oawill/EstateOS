@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * EstateOS brand tokens. Each --color-* var below auto-generates Tailwind
+ * utilities (bg-primary, text-foreground-muted, ring-primary/50, etc).
+ * Light-mode only by design — see the design-refresh plan for why a
+ * toggleable dark theme is out of scope; nav/hero/footer surfaces that
+ * should read as "premium dark" use --color-navy* directly instead.
+ */
+@theme {
+  --color-navy: #0b2345;
+  --color-navy-deep: #071a33;
+  --color-navy-light: #10305c;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-primary: #1473e6;
+  --color-primary-hover: #0f62c9;
+  --color-primary-light: #148dff;
+
+  --color-cyan: #00c2d7;
+  --color-cyan-light: #22d3ee;
+
+  --color-success: #19c37d;
+  --color-warning: #f59e0b;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-info: #1473e6;
+
+  --color-background: #f7fafc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-foreground: #10233f;
+  --color-foreground-muted: #64748b;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.gradient-hero {
+  background-image: linear-gradient(135deg, #1473e6 0%, #00c2d7 55%, #19c37d 100%);
+}
+
+.gradient-premium {
+  background-image: linear-gradient(135deg, #0b2345 0%, #1473e6 55%, #00c2d7 100%);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }

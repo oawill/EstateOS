@@ -1,9 +1,9 @@
 import Image from "next/image";
-import Link from "next/link";
 import { Role } from "@prisma/client";
 import { signOut } from "@/server/auth/config";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstateMember } from "@/server/auth/session";
+import { EstateNav } from "./EstateNav";
 
 const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
   [Role.PLATFORM_SUPER_ADMIN]: [],
@@ -52,13 +52,13 @@ export default async function EstateLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-slate-200 bg-white">
+      <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
             <Image src="/logo.png" alt="EstateOS" width={32} height={32} className="rounded-md" />
             <div>
               <p className="text-sm font-semibold">{membership.estateName}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-foreground-muted">
                 {user.name} · {membership.role.replaceAll("_", " ")}
               </p>
             </div>
@@ -69,24 +69,12 @@ export default async function EstateLayout({
               await signOut({ redirectTo: "/login" });
             }}
           >
-            <button type="submit" className="text-sm text-slate-500 hover:text-slate-900">
+            <button type="submit" className="text-sm text-foreground-muted hover:text-foreground">
               Sign out
             </button>
           </form>
         </div>
-        {nav.length > 0 && (
-          <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-2">
-            {nav.map((item) => (
-              <Link
-                key={item.href}
-                href={`/${estateSlug}/${item.href}`}
-                className="whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        )}
+        <EstateNav estateSlug={estateSlug} nav={nav} />
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
     </div>

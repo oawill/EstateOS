@@ -28,13 +28,13 @@ export default async function UtilitiesPage({
       </div>
 
       {billed && (
-        <Card className="border-emerald-300 bg-emerald-50">
-          <p className="text-sm text-emerald-800">Bill generated for {formatNaira(Number(billed))}.</p>
+        <Card className="border-success/30 bg-success/10">
+          <p className="text-sm text-success">Bill generated for {formatNaira(Number(billed))}.</p>
         </Card>
       )}
       {recorded && (
         <Card>
-          <p className="text-sm text-slate-600">Reading recorded — this is the first reading, so no bill was generated yet.</p>
+          <p className="text-sm text-foreground-muted">Reading recorded — this is the first reading, so no bill was generated yet.</p>
         </Card>
       )}
 

@@ -24,25 +24,25 @@ export default async function NotificationsPage({ params }: { params: Promise<{ 
 
       {notifications.length === 0 ? (
         <Card>
-          <p className="text-sm text-slate-500">No notifications yet.</p>
+          <p className="text-sm text-foreground-muted">No notifications yet.</p>
         </Card>
       ) : (
         <div className="space-y-3">
           {notifications.map((notification) => {
             const isUnread = !notification.readAt;
             return (
-              <Card key={notification.id} className={isUnread ? "border-slate-900" : undefined}>
+              <Card key={notification.id} className={isUnread ? "border-primary" : undefined}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-medium">{notification.title}</p>
-                      {isUnread && <Badge tone="warning">New</Badge>}
+                      {isUnread && <Badge tone="info">New</Badge>}
                       {notification.announcement && (
                         <Badge>{notification.announcement.category.replaceAll("_", " ")}</Badge>
                       )}
                     </div>
-                    <p className="mt-1 text-sm text-slate-600">{notification.body}</p>
-                    <p className="mt-1 text-xs text-slate-400">{formatDate(notification.createdAt)}</p>
+                    <p className="mt-1 text-sm text-foreground-muted">{notification.body}</p>
+                    <p className="mt-1 text-xs text-foreground-muted">{formatDate(notification.createdAt)}</p>
                   </div>
                   {isUnread && (
                     <form

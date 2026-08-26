@@ -1,16 +1,10 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Badge, Button, FormError, Input, Label } from "@/components/shared/ui";
+import { Badge, Button, Card, FormError, Input, Label } from "@/components/shared/ui";
 import { formatDate, formatNaira } from "@/lib/utils";
+import { INVOICE_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
 import { payWithPaystackAction, recordManualPaymentAction, type PayWithPaystackFormState, type RecordManualPaymentFormState } from "./actions";
-
-const STATUS_TONE = {
-  PENDING: "neutral",
-  PARTIALLY_PAID: "warning",
-  PAID: "success",
-  CANCELLED: "danger",
-} as const;
 
 export interface InvoiceSummary {
   id: string;
@@ -35,20 +29,21 @@ export function InvoiceCard({ estateSlug, invoice }: { estateSlug: string; invoi
   const isSettled = invoice.status === "PAID" || invoice.status === "CANCELLED";
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <Card>
       <div className="flex items-start justify-between">
         <div>
           <p className="font-medium">{invoice.title}</p>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {invoice.invoiceNumber} · {formatNaira(invoice.amountKobo)} · Due {formatDate(invoice.dueDate)}
+          <p className="mt-1 text-2xl font-semibold text-foreground">{formatNaira(invoice.amountKobo)}</p>
+          <p className="mt-0.5 text-sm text-foreground-muted">
+            {invoice.invoiceNumber} · Due {formatDate(invoice.dueDate)}
           </p>
-          {invoice.receiptNumber && <p className="mt-1 text-xs text-slate-400">Receipt {invoice.receiptNumber}</p>}
+          {invoice.receiptNumber && <p className="mt-1 text-xs text-foreground-muted">Receipt {invoice.receiptNumber}</p>}
         </div>
         <Badge tone={STATUS_TONE[invoice.status]}>{invoice.status.replaceAll("_", " ")}</Badge>
       </div>
 
       {!isSettled && (
-        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+        <div className="mt-4 space-y-3 border-t border-border pt-4">
           <FormError message={payState.error} />
           <div className="flex flex-wrap gap-2">
             <form action={payFormAction}>
@@ -63,7 +58,7 @@ export function InvoiceCard({ estateSlug, invoice }: { estateSlug: string; invoi
           </div>
 
           {showManualForm && (
-            <form action={manualFormAction} className="space-y-3 rounded-lg bg-slate-50 p-4">
+            <form action={manualFormAction} className="space-y-3 rounded-lg bg-surface-muted p-4">
               <FormError message={manualState.error} />
               <input type="hidden" name="invoiceId" value={invoice.id} />
               <div>
@@ -89,6 +84,6 @@ export function InvoiceCard({ estateSlug, invoice }: { estateSlug: string; invoi
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
