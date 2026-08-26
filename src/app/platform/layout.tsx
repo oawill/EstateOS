@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { signOut } from "@/server/auth/config";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
@@ -9,9 +10,12 @@ export default async function PlatformLayout({ children }: { children: React.Rea
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-slate-200 bg-slate-900 text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold">EstateOS Platform Admin</p>
-            <p className="text-xs text-slate-300">{user.name}</p>
+          <div className="flex items-center gap-2.5">
+            <Image src="/logo.png" alt="EstateOS" width={32} height={32} className="rounded-md" />
+            <div>
+              <p className="text-sm font-semibold">EstateOS Platform Admin</p>
+              <p className="text-xs text-slate-300">{user.name}</p>
+            </div>
           </div>
           <form
             action={async () => {

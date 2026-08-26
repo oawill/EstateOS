@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Role } from "@prisma/client";
 import { signOut } from "@/server/auth/config";
@@ -51,11 +52,14 @@ export default async function EstateLayout({
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold">{membership.estateName}</p>
-            <p className="text-xs text-slate-500">
-              {user.name} · {membership.role.replaceAll("_", " ")}
-            </p>
+          <div className="flex items-center gap-2.5">
+            <Image src="/logo.png" alt="EstateOS" width={32} height={32} className="rounded-md" />
+            <div>
+              <p className="text-sm font-semibold">{membership.estateName}</p>
+              <p className="text-xs text-slate-500">
+                {user.name} · {membership.role.replaceAll("_", " ")}
+              </p>
+            </div>
           </div>
           <form
             action={async () => {
