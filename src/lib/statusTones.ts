@@ -1,4 +1,11 @@
-import type { DemoRequestStatus, InvoiceStatus, MaintenancePriority, MaintenanceStatus } from "@prisma/client";
+import type {
+  ClassifiedListingStatus,
+  CommunityReportStatus,
+  DemoRequestStatus,
+  InvoiceStatus,
+  MaintenancePriority,
+  MaintenanceStatus,
+} from "@prisma/client";
 import type { EntryCodeStatus } from "@/server/modules/visitors/service";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
@@ -41,4 +48,19 @@ export const DEMO_REQUEST_STATUS_TONE: Record<DemoRequestStatus, Tone> = {
   PROPOSAL_SENT: "warning",
   WON: "success",
   LOST: "danger",
+};
+
+export const LISTING_STATUS_TONE: Record<ClassifiedListingStatus, Tone> = {
+  ACTIVE: "success",
+  RESERVED: "warning",
+  SOLD: "neutral",
+  EXPIRED: "neutral",
+  REMOVED: "danger",
+};
+
+export const COMMUNITY_REPORT_STATUS_TONE: Record<CommunityReportStatus, Tone> = {
+  OPEN: "warning",
+  REVIEWED: "info",
+  ACTIONED: "success",
+  DISMISSED: "neutral",
 };

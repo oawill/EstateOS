@@ -227,6 +227,87 @@ enum DemoRequestStatus {
   LOST
 }
 
+enum CommunityPostType {
+  TEXT
+  QUESTION
+  RECOMMENDATION
+  LOST_FOUND
+  DISCUSSION
+  EVENT_NOTICE
+  HELPFUL_INFO
+}
+
+enum LostFoundKind {
+  LOST
+  FOUND
+}
+
+// Shared moderation state across posts/comments/listings/events — kept as
+// one enum rather than one per model since the meaning and the moderation
+// queue's actions (hide/remove) are identical for all of them.
+enum CommunityVisibility {
+  VISIBLE
+  HIDDEN
+  REMOVED
+}
+
+enum ClassifiedListingStatus {
+  ACTIVE
+  RESERVED
+  SOLD
+  EXPIRED
+  REMOVED
+}
+
+enum ClassifiedCondition {
+  NEW
+  USED_LIKE_NEW
+  USED_GOOD
+  USED_FAIR
+  FOR_PARTS
+}
+
+enum ListingContactMethod {
+  IN_APP
+  WHATSAPP
+  PHONE
+}
+
+enum EventRsvpStatus {
+  GOING
+  INTERESTED
+  NOT_GOING
+}
+
+enum CommunityReportTargetType {
+  POST
+  COMMENT
+  LISTING
+}
+
+enum CommunityReportReason {
+  SPAM
+  FRAUD_SCAM
+  HARASSMENT
+  OFFENSIVE_CONTENT
+  MISLEADING_LISTING
+  PROHIBITED_GOODS_SERVICES
+  PRIVACY_VIOLATION
+  OTHER
+}
+
+enum CommunityReportStatus {
+  OPEN
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+enum CommunityDisplayNamePreference {
+  FULL_NAME
+  FIRST_NAME_LAST_INITIAL
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -248,6 +329,7 @@ model User {
   auditLogs     AuditLog[]     @relation("ActorUser")
   assignedMaintenanceTickets MaintenanceTicket[] @relation("MaintenanceAssignee")
   assignedDemoRequests       DemoRequest[]       @relation("DemoRequestAssignee")
+  resolvedCommunityReports   CommunityReport[]   @relation("CommunityReportResolver")
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +472,20 @@ model Estate {
   utilityBills    UtilityBill[]
   announcements   Announcement[]
   notifications   Notification[]
+  communitySettings   CommunitySettings?
+  classifiedCategories ClassifiedCategory[]
+  classifiedListings ClassifiedListing[]
+  classifiedImages  ClassifiedImage[]
+  communityPosts     CommunityPost[]
+  communityPostImages CommunityPostImage[]
+  communityComments  CommunityComment[]
+  communityReactions CommunityReaction[]
+  communitySavedPosts CommunitySavedPost[]
+  communitySavedListings CommunitySavedListing[]
+  communityEvents    CommunityEvent[]
+  eventRsvps         EventRsvp[]
+  communityReports   CommunityReport[]
+  listingInquiries   ListingInquiry[]
 
   @@index([subscriptionStatus])
 }
@@ -513,6 +609,12 @@ model Resident {
   phone                 String?
   emergencyContactName  String?
   emergencyContactPhone String?
+  // Community preferences/moderation state — nullable, so an unset
+  // preference falls back to the estate's CommunitySettings default.
+  communityDisplayNamePreference CommunityDisplayNamePreference?
+  communityGuidelinesAcceptedAt  DateTime?
+  communitySuspendedAt           DateTime?
+  communitySuspendedReason       String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -524,6 +626,16 @@ model Resident {
   visitorPasses VisitorPass[]
   maintenanceTickets MaintenanceTicket[]
   notifications Notification[]
+  communityPosts        CommunityPost[]
+  communityComments     CommunityComment[]
+  communityReactions    CommunityReaction[]
+  communitySavedPosts   CommunitySavedPost[]
+  classifiedListings    ClassifiedListing[]
+  savedListings         CommunitySavedListing[]
+  communityEvents       CommunityEvent[]
+  eventRsvps            EventRsvp[]
+  communityReports      CommunityReport[]
+  listingInquiries      ListingInquiry[]
 
   @@index([estateId])
   @@index([userId])
@@ -919,6 +1031,306 @@ model Notification {
   @@index([estateId])
   @@index([residentId])
   @@index([announcementId])
+}
+
+// ---------------------------------------------------------------------------
+// Community (Feed, Classifieds, Events, Moderation)
+// ---------------------------------------------------------------------------
+
+// One row per estate. Deliberately created lazily (see
+// src/server/modules/community/settings.ts) rather than at Estate creation
+// time, same as how ClassifiedCategory rows are seeded on first access.
+model CommunitySettings {
+  id                      String   @id @default(cuid())
+  estateId                String   @unique
+  communityEnabled        Boolean  @default(true)
+  classifiedsEnabled      Boolean  @default(true)
+  listingsRequireApproval Boolean  @default(false)
+  guidelinesText          String?
+  defaultDisplayNamePreference CommunityDisplayNamePreference @default(FIRST_NAME_LAST_INITIAL)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  estate Estate @relation(fields: [estateId], references: [id], onDelete: Cascade)
+}
+
+// Per-estate, not a global enum, so an admin can enable/disable which
+// categories their estate uses (spec: "configure available categories per
+// estate") — seeded from a fixed default list on first access, not
+// arbitrary free-text categories, to keep Classifieds search/filter
+// meaningful.
+model ClassifiedCategory {
+  id        String   @id @default(cuid())
+  estateId  String
+  key       String
+  label     String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  estate   Estate              @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  listings ClassifiedListing[]
+
+  @@unique([estateId, key])
+  @@index([estateId])
+}
+
+// The shortlet-specific fields below are nullable and only populated when
+// categoryId points at the Shortlets category — deliberately not a
+// separate booking model (see spec: "do not build a full Airbnb-style
+// marketplace"), just a few extra optional columns on the same listing.
+model ClassifiedListing {
+  id               String                   @id @default(cuid())
+  estateId         String
+  sellerResidentId String
+  categoryId       String
+  title            String
+  description      String
+  priceKobo        Int?
+  currency         String                   @default("NGN")
+  negotiable       Boolean                  @default(false)
+  condition        ClassifiedCondition?
+  // Optional, deliberately coarse (e.g. "Near Block C") — never the
+  // resident's exact unit number, which stays server-side only (see
+  // getDisplayIdentity() — public listing/post views never expose it).
+  locationNote     String?
+  contactMethods   ListingContactMethod[]
+  whatsappNumber   String?
+  phoneNumber      String?
+  status           ClassifiedListingStatus @default(ACTIVE)
+  moderationStatus CommunityVisibility     @default(VISIBLE)
+  expiresAt        DateTime?
+  // Null while pending when CommunitySettings.listingsRequireApproval is
+  // on; set the moment it's created otherwise.
+  approvedAt       DateTime?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  nightlyRateKobo Int?
+  bedrooms        Int?
+  maxGuests       Int?
+  amenities       String[]
+  availableFrom   DateTime?
+  availableTo     DateTime?
+
+  estate    Estate                  @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  seller    Resident                @relation(fields: [sellerResidentId], references: [id], onDelete: Cascade)
+  category  ClassifiedCategory      @relation(fields: [categoryId], references: [id])
+  images    ClassifiedImage[]
+  savedBy   CommunitySavedListing[]
+  inquiries ListingInquiry[]
+
+  @@index([estateId, status])
+  @@index([categoryId])
+}
+
+model ClassifiedImage {
+  id        String   @id @default(cuid())
+  estateId  String
+  listingId String
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  estate  Estate            @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  listing ClassifiedListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+}
+
+model CommunitySavedListing {
+  id         String   @id @default(cuid())
+  estateId   String
+  residentId String
+  listingId  String
+  createdAt  DateTime @default(now())
+
+  estate   Estate            @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident Resident          @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  listing  ClassifiedListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([residentId, listingId])
+  @@index([estateId])
+}
+
+// A one-shot message to a seller, delivered as a row the seller reads on
+// their own listing — the MVP's "in-app contact option", deliberately not
+// a threaded conversation (see spec §12: reuse existing infra, don't build
+// a separate messaging system; EstateOS has none today).
+model ListingInquiry {
+  id              String   @id @default(cuid())
+  estateId        String
+  listingId       String
+  buyerResidentId String
+  message         String
+  createdAt       DateTime @default(now())
+
+  estate  Estate            @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  listing ClassifiedListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer   Resident          @relation(fields: [buyerResidentId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+}
+
+// Lost & Found is a postType, not a separate system (spec §14: "should
+// also appear within Community Classifieds/Feed") — lostFoundKind/
+// lostFoundResolvedAt are only populated when postType = LOST_FOUND.
+// Official estate posts are NOT rows here — the Feed reads Announcement
+// directly and interleaves it at query time (see
+// src/server/modules/community/posts.ts) to avoid duplicating that data.
+model CommunityPost {
+  id                  String              @id @default(cuid())
+  estateId            String
+  authorResidentId    String
+  postType            CommunityPostType   @default(TEXT)
+  body                String
+  lostFoundKind       LostFoundKind?
+  lostFoundResolvedAt DateTime?
+  moderationStatus    CommunityVisibility @default(VISIBLE)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  estate    Estate               @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  author    Resident             @relation(fields: [authorResidentId], references: [id], onDelete: Cascade)
+  images    CommunityPostImage[]
+  comments  CommunityComment[]
+  reactions CommunityReaction[]
+  savedBy   CommunitySavedPost[]
+
+  @@index([estateId, createdAt])
+}
+
+model CommunityPostImage {
+  id        String   @id @default(cuid())
+  estateId  String
+  postId    String
+  url       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  estate Estate        @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+// parentCommentId supports one level of "Reply" (spec §6) — not a full
+// arbitrarily-nested thread.
+model CommunityComment {
+  id               String              @id @default(cuid())
+  estateId         String
+  postId           String
+  authorResidentId String
+  parentCommentId  String?
+  body             String
+  moderationStatus CommunityVisibility @default(VISIBLE)
+  createdAt        DateTime            @default(now())
+
+  estate    Estate             @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  post      CommunityPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    Resident           @relation(fields: [authorResidentId], references: [id], onDelete: Cascade)
+  parent    CommunityComment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies   CommunityComment[] @relation("CommentReplies")
+  reactions CommunityReaction[]
+
+  @@index([postId])
+}
+
+// Single LIKE type for now (spec: "keep reactions simple initially") —
+// exactly one of postId/commentId is set. Postgres treats each NULL as
+// distinct in a unique index, so the two partial-key uniques below don't
+// conflict with each other.
+model CommunityReaction {
+  id         String   @id @default(cuid())
+  estateId   String
+  residentId String
+  postId     String?
+  commentId  String?
+  createdAt  DateTime @default(now())
+
+  estate   Estate            @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident Resident          @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([residentId, postId])
+  @@unique([residentId, commentId])
+  @@index([estateId])
+}
+
+model CommunitySavedPost {
+  id         String   @id @default(cuid())
+  estateId   String
+  residentId String
+  postId     String
+  createdAt  DateTime @default(now())
+
+  estate   Estate        @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident Resident      @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  post     CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([residentId, postId])
+  @@index([estateId])
+}
+
+model CommunityEvent {
+  id                  String              @id @default(cuid())
+  estateId            String
+  organizerResidentId String?
+  title               String
+  description         String?
+  eventDate           DateTime
+  eventTime           String?
+  location            String?
+  moderationStatus    CommunityVisibility @default(VISIBLE)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  estate    Estate      @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  organizer Resident?   @relation(fields: [organizerResidentId], references: [id])
+  rsvps     EventRsvp[]
+
+  @@index([estateId, eventDate])
+}
+
+model EventRsvp {
+  id         String          @id @default(cuid())
+  estateId   String
+  eventId    String
+  residentId String
+  status     EventRsvpStatus
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  estate   Estate         @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  event    CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  resident Resident       @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, residentId])
+  @@index([estateId])
+}
+
+// A resident filing a report — user-generated content, distinct from the
+// moderation *action* taken on it (which reuses the existing AuditLog,
+// see recordAudit() in src/server/modules/community/moderation.ts).
+model CommunityReport {
+  id                 String                    @id @default(cuid())
+  estateId           String
+  reporterResidentId String
+  targetType         CommunityReportTargetType
+  targetId           String
+  reason             CommunityReportReason
+  details            String?
+  status             CommunityReportStatus     @default(OPEN)
+  createdAt          DateTime                  @default(now())
+  resolvedAt         DateTime?
+  resolvedByUserId   String?
+
+  estate     Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  reporter   Resident @relation(fields: [reporterResidentId], references: [id], onDelete: Cascade)
+  resolvedBy User?    @relation("CommunityReportResolver", fields: [resolvedByUserId], references: [id])
+
+  @@index([estateId, status])
 }
 
 // ---------------------------------------------------------------------------

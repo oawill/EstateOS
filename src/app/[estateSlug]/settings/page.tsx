@@ -1,16 +1,20 @@
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { listBlocks, listStreets, listZones } from "@/server/modules/estates/service";
+import { getOrCreateCommunitySettings, listClassifiedCategories } from "@/server/modules/community/settings";
 import { GeographySection } from "./GeographySection";
+import { CommunitySettingsSection } from "./CommunitySettingsSection";
 
 export default async function SettingsPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
   const { membership } = await guardPage(() => requireEstatePermission(estateSlug, "estate:*"));
 
-  const [blocks, streets, zones] = await Promise.all([
+  const [blocks, streets, zones, communitySettings, categories] = await Promise.all([
     listBlocks(membership.estateId),
     listStreets(membership.estateId),
     listZones(membership.estateId),
+    getOrCreateCommunitySettings(membership.estateId),
+    listClassifiedCategories(membership.estateId),
   ]);
 
   return (
@@ -24,6 +28,11 @@ export default async function SettingsPage({ params }: { params: Promise<{ estat
         <GeographySection estateSlug={estateSlug} kind="street" title="Streets" items={streets} />
         <GeographySection estateSlug={estateSlug} kind="zone" title="Zones" items={zones} />
       </div>
+      <CommunitySettingsSection
+        estateSlug={estateSlug}
+        settings={communitySettings}
+        categories={categories.map((c) => ({ id: c.id, label: c.label, isActive: c.isActive }))}
+      />
     </div>
   );
 }

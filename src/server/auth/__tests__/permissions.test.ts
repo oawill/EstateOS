@@ -49,4 +49,27 @@ describe("RBAC permission map", () => {
     expect(hasPermission(Role.FINANCE, "reports:read")).toBe(true);
     expect(hasPermission(Role.FINANCE, "maintenance:*")).toBe(false);
   });
+
+  it("RESIDENT and ESTATE_ADMIN can use Community, but only ESTATE_ADMIN can moderate/configure it", () => {
+    for (const role of [Role.RESIDENT, Role.ESTATE_ADMIN]) {
+      expect(hasPermission(role, "community-posts:*")).toBe(true);
+      expect(hasPermission(role, "community-comments:*")).toBe(true);
+      expect(hasPermission(role, "community-reactions:*")).toBe(true);
+      expect(hasPermission(role, "community-listings:*")).toBe(true);
+      expect(hasPermission(role, "community-events:*")).toBe(true);
+      expect(hasPermission(role, "community-reports:create")).toBe(true);
+    }
+
+    expect(hasPermission(Role.RESIDENT, "community-moderation:*")).toBe(false);
+    expect(hasPermission(Role.RESIDENT, "community-settings:*")).toBe(false);
+    expect(hasPermission(Role.ESTATE_ADMIN, "community-moderation:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "community-settings:*")).toBe(true);
+  });
+
+  it("Finance/Facility/Security/Vendor have no Community access", () => {
+    for (const role of [Role.FINANCE, Role.FACILITY_MANAGER, Role.SECURITY, Role.VENDOR]) {
+      expect(hasPermission(role, "community-posts:*")).toBe(false);
+      expect(hasPermission(role, "community-listings:*")).toBe(false);
+    }
+  });
 });

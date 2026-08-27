@@ -35,7 +35,15 @@ export type Permission =
   | "own-maintenance:*"
   | "announcements:read"
   | "assigned-workorders:read"
-  | "assigned-workorders:update";
+  | "assigned-workorders:update"
+  | "community-posts:*"
+  | "community-comments:*"
+  | "community-reactions:*"
+  | "community-listings:*"
+  | "community-events:*"
+  | "community-reports:create"
+  | "community-moderation:*"
+  | "community-settings:*";
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.PLATFORM_SUPER_ADMIN]: ["platform:*"],
@@ -59,6 +67,14 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "visitors:*",
     "announcements:*",
     "members:*",
+    "community-posts:*",
+    "community-comments:*",
+    "community-reactions:*",
+    "community-listings:*",
+    "community-events:*",
+    "community-reports:create",
+    "community-moderation:*",
+    "community-settings:*",
   ],
 
   [Role.FINANCE]: ["charges:*", "invoices:*", "payments:*", "receipts:*", "reports:read"],
@@ -75,6 +91,12 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "own-visitors:*",
     "own-maintenance:*",
     "announcements:read",
+    "community-posts:*",
+    "community-comments:*",
+    "community-reactions:*",
+    "community-listings:*",
+    "community-events:*",
+    "community-reports:create",
   ],
 
   [Role.VENDOR]: ["assigned-workorders:read", "assigned-workorders:update"],

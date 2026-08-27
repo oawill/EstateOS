@@ -2,8 +2,22 @@ import type {
   Announcement,
   Block,
   Charge,
+  ClassifiedCategory,
+  ClassifiedImage,
+  ClassifiedListing,
+  CommunityComment,
+  CommunityEvent,
+  CommunityPost,
+  CommunityPostImage,
+  CommunityReaction,
+  CommunityReport,
+  CommunitySavedListing,
+  CommunitySavedPost,
+  CommunitySettings,
+  EventRsvp,
   GateEntry,
   Invoice,
+  ListingInquiry,
   MaintenanceComment,
   MaintenanceTicket,
   MeterReading,
@@ -248,6 +262,104 @@ export function scoped(estateId: string) {
       Omit<Prisma.NotificationUncheckedCreateInput, "estateId" | "id" | "createdAt">,
       Prisma.NotificationUpdateInput
     >(prisma.notification, "Notification", estateId),
+
+    communitySettings: makeScopedDelegate<
+      Prisma.CommunitySettingsWhereInput,
+      CommunitySettings,
+      Omit<Prisma.CommunitySettingsUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.CommunitySettingsUpdateInput
+    >(prisma.communitySettings, "CommunitySettings", estateId),
+
+    classifiedCategory: makeScopedDelegate<
+      Prisma.ClassifiedCategoryWhereInput,
+      ClassifiedCategory,
+      Omit<Prisma.ClassifiedCategoryUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.ClassifiedCategoryUpdateInput
+    >(prisma.classifiedCategory, "ClassifiedCategory", estateId),
+
+    classifiedListing: makeScopedDelegate<
+      Prisma.ClassifiedListingWhereInput,
+      ClassifiedListing,
+      Omit<Prisma.ClassifiedListingUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.ClassifiedListingUncheckedUpdateInput
+    >(prisma.classifiedListing, "ClassifiedListing", estateId),
+
+    classifiedImage: makeScopedDelegate<
+      Prisma.ClassifiedImageWhereInput,
+      ClassifiedImage,
+      Omit<Prisma.ClassifiedImageUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.ClassifiedImageUpdateInput
+    >(prisma.classifiedImage, "ClassifiedImage", estateId),
+
+    communitySavedListing: makeScopedDelegate<
+      Prisma.CommunitySavedListingWhereInput,
+      CommunitySavedListing,
+      Omit<Prisma.CommunitySavedListingUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.CommunitySavedListingUpdateInput
+    >(prisma.communitySavedListing, "CommunitySavedListing", estateId),
+
+    listingInquiry: makeScopedDelegate<
+      Prisma.ListingInquiryWhereInput,
+      ListingInquiry,
+      Omit<Prisma.ListingInquiryUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.ListingInquiryUpdateInput
+    >(prisma.listingInquiry, "ListingInquiry", estateId),
+
+    communityPost: makeScopedDelegate<
+      Prisma.CommunityPostWhereInput,
+      CommunityPost,
+      Omit<Prisma.CommunityPostUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.CommunityPostUncheckedUpdateInput
+    >(prisma.communityPost, "CommunityPost", estateId),
+
+    communityPostImage: makeScopedDelegate<
+      Prisma.CommunityPostImageWhereInput,
+      CommunityPostImage,
+      Omit<Prisma.CommunityPostImageUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.CommunityPostImageUpdateInput
+    >(prisma.communityPostImage, "CommunityPostImage", estateId),
+
+    communityComment: makeScopedDelegate<
+      Prisma.CommunityCommentWhereInput,
+      CommunityComment,
+      Omit<Prisma.CommunityCommentUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.CommunityCommentUpdateInput
+    >(prisma.communityComment, "CommunityComment", estateId),
+
+    communityReaction: makeScopedDelegate<
+      Prisma.CommunityReactionWhereInput,
+      CommunityReaction,
+      Omit<Prisma.CommunityReactionUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.CommunityReactionUpdateInput
+    >(prisma.communityReaction, "CommunityReaction", estateId),
+
+    communitySavedPost: makeScopedDelegate<
+      Prisma.CommunitySavedPostWhereInput,
+      CommunitySavedPost,
+      Omit<Prisma.CommunitySavedPostUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.CommunitySavedPostUpdateInput
+    >(prisma.communitySavedPost, "CommunitySavedPost", estateId),
+
+    communityEvent: makeScopedDelegate<
+      Prisma.CommunityEventWhereInput,
+      CommunityEvent,
+      Omit<Prisma.CommunityEventUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.CommunityEventUpdateInput
+    >(prisma.communityEvent, "CommunityEvent", estateId),
+
+    eventRsvp: makeScopedDelegate<
+      Prisma.EventRsvpWhereInput,
+      EventRsvp,
+      Omit<Prisma.EventRsvpUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.EventRsvpUncheckedUpdateInput
+    >(prisma.eventRsvp, "EventRsvp", estateId),
+
+    communityReport: makeScopedDelegate<
+      Prisma.CommunityReportWhereInput,
+      CommunityReport,
+      Omit<Prisma.CommunityReportUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.CommunityReportUncheckedUpdateInput
+    >(prisma.communityReport, "CommunityReport", estateId),
   };
 }
 

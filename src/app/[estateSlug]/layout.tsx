@@ -15,6 +15,10 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
     { href: "facility", label: "Facility" },
     { href: "utilities", label: "Utilities" },
     { href: "announcements", label: "Announcements" },
+    // Estate-admin staff accounts typically aren't Residents, so they land
+    // on Moderation (which needs no resident profile) rather than the Feed
+    // (which does) — the Community sub-nav still lets them reach every tab.
+    { href: "community/moderation", label: "Community" },
     { href: "import", label: "Import" },
     { href: "settings", label: "Settings" },
   ],
@@ -32,6 +36,7 @@ const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
     { href: "dashboard", label: "Home" },
     { href: "visitors", label: "Visitors" },
     { href: "maintenance", label: "Maintenance" },
+    { href: "community", label: "Community" },
     { href: "my/utilities", label: "Utilities" },
     { href: "my/bills", label: "My Bills" },
     { href: "notifications", label: "Notifications" },
