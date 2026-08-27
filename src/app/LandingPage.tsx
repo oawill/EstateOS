@@ -11,9 +11,9 @@ import { SecuritySection } from "@/components/landing/SecuritySection";
 import { ShortletPromo } from "@/components/landing/ShortletPromo";
 import { DemoCta } from "@/components/landing/DemoCta";
 
-// Hero (incl. role-based preview + what EstateOS replaces)
+// Hero (incl. role-based preview + what NidraQ replaces)
 // -> core operational capabilities (FeatureGrid, Security & Gate Ops)
-// -> How EstateOS Works -> One Platform. Different Communities.
+// -> How NidraQ Works -> One Platform. Different Communities.
 // -> connected communications -> Security & Trust -> Shortlet -> Request Demo
 export function LandingPage() {
   return (

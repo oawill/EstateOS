@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EstateOS",
-  description: "The operating system for modern estates.",
+  title: `${BRAND.name} | Community Management Platform`,
+  description: BRAND.description,
+  metadataBase: new URL(BRAND.url),
+  openGraph: {
+    title: `${BRAND.name} | Community Management Platform`,
+    description: BRAND.description,
+    url: BRAND.url,
+    siteName: BRAND.name,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${BRAND.name} | Community Management Platform`,
+    description: BRAND.description,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -23,7 +23,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <div className="space-y-4 text-center" role="status" aria-live="polite">
         <h1 className="text-xl font-semibold tracking-tight">Password updated</h1>
         <p className="text-sm text-foreground-muted">
-          Your EstateOS password has been changed successfully. You can now sign in using your new password.
+          Your NidraQ password has been changed successfully. You can now sign in using your new password.
         </p>
         <Link href="/login">
           <Button type="button" className="w-full">
@@ -40,7 +40,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     <div className="space-y-4">
       <div className="text-center">
         <h1 className="text-xl font-semibold tracking-tight">Reset your password</h1>
-        <p className="mt-2 text-sm text-foreground-muted">Choose a new password for your EstateOS account.</p>
+        <p className="mt-2 text-sm text-foreground-muted">Choose a new password for your NidraQ account.</p>
       </div>
       <form action={formAction} className="space-y-4">
         <FormError message={state.error} />

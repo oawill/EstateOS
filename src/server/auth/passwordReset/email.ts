@@ -31,11 +31,11 @@ export async function sendPasswordResetEmail(to: string, rawToken: string): Prom
     return;
   }
 
-  const from = process.env.EMAIL_FROM ?? "EstateOS <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM ?? "NidraQ <onboarding@resend.dev>";
 
   const text = `Reset your password
 
-We received a request to reset the password for your EstateOS account.
+We received a request to reset the password for your NidraQ account.
 
 Reset your password: ${resetUrl}
 
@@ -45,7 +45,7 @@ If you didn't request a password reset, you can safely ignore this email — you
 `;
 
   try {
-    const result = await client.emails.send({ from, to, subject: "Reset your EstateOS password", text });
+    const result = await client.emails.send({ from, to, subject: "Reset your NidraQ password", text });
     if (result.error) {
       console.error(`[passwordReset/email] Resend rejected reset email:`, result.error);
     }

@@ -16,7 +16,7 @@ export function InviteResidentButton({ estateSlug, residentId }: { estateSlug: s
   return (
     <form action={formAction}>
       <button type="submit" disabled={pending} className="text-xs text-primary underline underline-offset-2 disabled:opacity-50">
-        {pending ? "Sending…" : "Invite to EstateOS"}
+        {pending ? "Sending…" : "Invite to NidraQ"}
       </button>
       {state.error && <p className="mt-1 text-xs text-danger">{state.error}</p>}
     </form>

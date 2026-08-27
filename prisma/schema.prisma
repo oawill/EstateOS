@@ -342,7 +342,7 @@ enum VisitorPassType {
 }
 
 // ---------------------------------------------------------------------------
-// EstateOS Shortlet
+// NidraQ Shortlet
 // ---------------------------------------------------------------------------
 
 enum ShortletPropertyType {
@@ -585,7 +585,7 @@ model Estate {
   postalCode         String?
   // Global-ready locale configuration. Nigeria remains the sensible
   // default for every existing and newly-created estate today (the only
-  // market EstateOS actually operates in), but these are real per-estate
+  // market NidraQ actually operates in), but these are real per-estate
   // fields, not hardcoded assumptions — an estate admin can change them in
   // Settings, and every new organization is free to pick a different
   // country from creation. See src/lib/locale.ts for how these drive
@@ -1038,7 +1038,7 @@ model GateEntry {
 // record-keeping — not a login. A vendor's own staff who need to see
 // their assigned tickets are separate Users with Role.VENDOR, linked via
 // MaintenanceTicket.assignedToUserId, not via this model.
-// Vendor is a first-class EstateOS entity, not information duplicated across
+// Vendor is a first-class NidraQ entity, not information duplicated across
 // maintenance requests — see src/server/modules/vendors/. Still a
 // directory-only record (no login), same as before; isApproved/contract
 // dates/notes are the lightweight expansion requested, deliberately not a
@@ -1067,13 +1067,13 @@ model MaintenanceTicket {
   id               String              @id @default(cuid())
   estateId         String
   ticketNumber     String
-  // Nullable so the same engine can carry an EstateOS Shortlet ticket
+  // Nullable so the same engine can carry an NidraQ Shortlet ticket
   // (shortletUnitId set, no resident) alongside a residential one
   // (residentId set, no shortlet unit) — exactly one is ever set. Every
   // resident-facing code path still always supplies residentId and never
   // touches shortletUnitId, so existing behavior is unchanged.
   residentId       String? // reporter (residential)
-  shortletUnitId   String? // EstateOS Shortlet unit (shortlet)
+  shortletUnitId   String? // NidraQ Shortlet unit (shortlet)
   category         MaintenanceCategory
   description      String
   location         String?
@@ -1400,7 +1400,7 @@ model CommunitySavedListing {
 // A one-shot message to a seller, delivered as a row the seller reads on
 // their own listing — the MVP's "in-app contact option", deliberately not
 // a threaded conversation (see spec §12: reuse existing infra, don't build
-// a separate messaging system; EstateOS has none today).
+// a separate messaging system; NidraQ has none today).
 model ListingInquiry {
   id              String   @id @default(cuid())
   estateId        String
@@ -1578,7 +1578,7 @@ model CommunityReport {
 }
 
 // ---------------------------------------------------------------------------
-// EstateOS Shortlet — a separate operations module for shortlet/serviced-
+// NidraQ Shortlet — a separate operations module for shortlet/serviced-
 // apartment operators, deliberately kept apart from the residential
 // Community/Classifieds experience above. Reuses Estate/EstateMember/RBAC/
 // scoped()/AuditLog/S3 rather than a parallel tenant concept — an operator

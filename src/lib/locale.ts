@@ -1,5 +1,5 @@
 // Shared option lists for organization locale configuration. Nigeria stays
-// first/default (the only market EstateOS operates in today), but these are
+// first/default (the only market NidraQ operates in today), but these are
 // real, selectable options — not a Nigeria-only enum — so a new estate can
 // pick a different country from creation and existing estates can migrate
 // later without a schema change.

@@ -44,7 +44,7 @@ export default async function FacilityTicketPage({
         <p className="mt-2 text-sm text-slate-500">
           {ticket.resident
             ? `Reported by ${ticket.resident.firstName} ${ticket.resident.lastName}`
-            : `EstateOS Shortlet — ${ticket.shortletUnit?.property.name} (${ticket.shortletUnit?.unitLabel})`}
+            : `NidraQ Shortlet — ${ticket.shortletUnit?.property.name} (${ticket.shortletUnit?.unitLabel})`}
         </p>
       </Card>
 

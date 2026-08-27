@@ -46,7 +46,7 @@ export function FeatureGrid() {
         <h2 className="mt-2 text-3xl font-semibold tracking-tight">Powerful Features. Seamless Operations.</h2>
 
         <p className="mt-4 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-sm text-foreground-muted">
-          <span className="font-medium text-foreground">EstateOS manages</span>
+          <span className="font-medium text-foreground">NidraQ manages</span>
           {HIERARCHY.map((item, i) => (
             <span key={item} className="flex items-center gap-1.5">
               {item}

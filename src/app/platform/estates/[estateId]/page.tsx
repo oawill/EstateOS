@@ -89,7 +89,7 @@ export default async function PlatformEstateDetailPage({
       <Card>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-slate-700">EstateOS Shortlet</p>
+            <p className="text-sm font-medium text-slate-700">NidraQ Shortlet</p>
             <p className="mt-1 text-sm text-slate-500">
               A subscription entitlement, not a self-serve toggle — enabling this gives estate admins access to the
               Shortlet operations module.

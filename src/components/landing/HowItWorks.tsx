@@ -68,9 +68,9 @@ export function HowItWorks() {
     <section id="how-it-works" className="mx-auto max-w-6xl px-4 py-20">
       <div className="mx-auto max-w-2xl text-center">
         <p className="text-xs font-semibold uppercase tracking-wide text-primary">The everyday flow</p>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight">How EstateOS Works</h2>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight">How NidraQ Works</h2>
         <p className="mt-4 text-foreground-muted">
-          From service charges to visitor access and maintenance, EstateOS connects the everyday workflows that keep
+          From service charges to visitor access and maintenance, NidraQ connects the everyday workflows that keep
           your community running.
         </p>
       </div>

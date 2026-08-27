@@ -1,4 +1,4 @@
-// Reusable social-proof band. Until EstateOS has verified customer numbers,
+// Reusable social-proof band. Until NidraQ has verified customer numbers,
 // `stats` stays empty and this renders the positioning statement instead —
 // swap in real figures later (e.g. { value: "25", label: "Communities" })
 // without touching layout or the rest of the homepage.

@@ -5,9 +5,9 @@ import { LandingHeader } from "@/components/landing/LandingHeader";
 import { Button } from "@/components/shared/ui";
 
 export const metadata: Metadata = {
-  title: "EstateOS Security & Trust | Protecting Community Operations",
+  title: "NidraQ Security & Trust | Protecting Community Operations",
   description:
-    "How EstateOS protects community data — tenant isolation, role-based access, administrative audit trails and secure payment verification for estates and shortlet operators across Nigeria and Africa.",
+    "How NidraQ protects community data — tenant isolation, role-based access, administrative audit trails and secure payment verification for estates and shortlet operators across Nigeria and Africa.",
 };
 
 const SECTIONS = [
@@ -33,7 +33,7 @@ const SECTIONS = [
   },
   {
     title: "Payments",
-    body: "Payments are processed through Paystack. EstateOS does not receive or store card numbers — that's handled by Paystack's own secure checkout. When a payment completes, Paystack notifies EstateOS through a webhook that is cryptographically signature-verified on the server before any payment is recorded; a payment is never marked successful based on what the browser reports.",
+    body: "Payments are processed through Paystack. NidraQ does not receive or store card numbers — that's handled by Paystack's own secure checkout. When a payment completes, Paystack notifies NidraQ through a webhook that is cryptographically signature-verified on the server before any payment is recorded; a payment is never marked successful based on what the browser reports.",
   },
   {
     title: "Data Protection",
@@ -41,7 +41,7 @@ const SECTIONS = [
   },
   {
     title: "Infrastructure",
-    body: "EstateOS runs on established cloud infrastructure with managed, encrypted database hosting. Traffic to the platform is encrypted in transit.",
+    body: "NidraQ runs on established cloud infrastructure with managed, encrypted database hosting. Traffic to the platform is encrypted in transit.",
   },
 ] as const;
 
@@ -57,7 +57,7 @@ export default function SecurityPage() {
             Your Community. <span className="text-primary">Your Data.</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-slate-300">
-            EstateOS is designed to protect community information while giving residents, security teams, finance
+            NidraQ is designed to protect community information while giving residents, security teams, finance
             teams and administrators access only to the tools and information they need.
           </p>
         </div>
@@ -76,9 +76,9 @@ export default function SecurityPage() {
         <div className="mt-16 rounded-xl border border-border bg-surface-muted p-6">
           <h2 className="text-lg font-semibold tracking-tight">Responsible Security Contact</h2>
           <p className="mt-2 text-sm leading-relaxed text-foreground-muted">
-            If you believe you&apos;ve found a security issue affecting EstateOS, please contact us at{" "}
-            <a href="mailto:security@estateos.ng" className="font-medium text-primary hover:underline">
-              security@estateos.ng
+            If you believe you&apos;ve found a security issue affecting NidraQ, please contact us at{" "}
+            <a href="mailto:security@nidraq.com" className="font-medium text-primary hover:underline">
+              security@nidraq.com
             </a>{" "}
             so we can investigate. We ask that you give us a reasonable opportunity to address any issue before
             disclosing it publicly.

@@ -4,7 +4,7 @@ import { NotFoundError } from "@/lib/errors";
 import type { VendorInput } from "./schema";
 
 /**
- * Vendors as a first-class EstateOS entity — moved out of the maintenance
+ * Vendors as a first-class NidraQ entity — moved out of the maintenance
  * module (see git history) so vendor information lives in one place rather
  * than being duplicated across maintenance requests. MaintenanceTicket.vendorId
  * still references this same table; nothing about that relationship changed.

@@ -105,7 +105,7 @@ export default async function DemoRequestDetailPage({ params }: { params: Promis
         <h2 className="mb-4 font-medium">Additional information</h2>
         <div className="space-y-4">
           <Field label="Comments" value={request.comments} />
-          <Field label="How they heard about EstateOS" value={request.referralSource} />
+          <Field label="How they heard about NidraQ" value={request.referralSource} />
         </div>
       </Card>
 

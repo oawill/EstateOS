@@ -29,7 +29,7 @@ export function SecuritySection() {
             Your Community. <span className="text-primary">Your Data.</span>
           </h2>
           <p className="mt-4 text-slate-300">
-            EstateOS is designed to protect community information while giving residents, security teams, finance
+            NidraQ is designed to protect community information while giving residents, security teams, finance
             teams and administrators access only to the tools and information they need.
           </p>
         </div>
@@ -46,7 +46,7 @@ export function SecuritySection() {
         <div className="mt-10 text-center">
           <Link href="/security">
             <Button type="button" variant="secondary" className="!border-white/30 !bg-transparent !text-white hover:!bg-white/10">
-              Learn About EstateOS Security
+              Learn About NidraQ Security
             </Button>
           </Link>
         </div>

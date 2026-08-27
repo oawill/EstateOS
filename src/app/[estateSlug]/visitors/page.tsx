@@ -96,7 +96,7 @@ export default async function VisitorsPage({
         <Card className="text-center">
           <p className="font-medium">No upcoming visitors</p>
           <p className="mt-1 text-sm text-foreground-muted">
-            Invite a guest and EstateOS will create a secure gate pass for them.
+            Invite a guest and NidraQ will create a secure gate pass for them.
           </p>
           <Link href={`/${estateSlug}/visitors/new`} className="mt-4 inline-block">
             <Button>Invite Visitor</Button>

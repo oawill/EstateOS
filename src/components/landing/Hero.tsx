@@ -8,16 +8,16 @@ export function Hero() {
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-4 py-16 lg:grid-cols-2 lg:py-24">
         <div>
           <p className="text-xs font-semibold tracking-wide text-white/60">
-            THE OPERATING SYSTEM
+            EVERYTHING YOUR COMMUNITY
             <br />
-            FOR MODERN COMMUNITIES
+            NEEDS TO RUN BETTER
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
             Stop Running Your Community Through{" "}
             <span className="text-primary">WhatsApp, Spreadsheets and Bank Transfers.</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg text-slate-300">
-            EstateOS brings residents, payments, security, visitors, utilities, maintenance and community operations
+            NidraQ brings residents, payments, security, visitors, utilities, maintenance and community operations
             into one connected platform.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">

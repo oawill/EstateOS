@@ -22,7 +22,7 @@ export default async function ShortletMaintenancePage({ params }: { params: Prom
         </Link>
       </div>
       <p className="text-sm text-foreground-muted">
-        Shortlet issues run through the same maintenance engine as the rest of EstateOS — just filtered to your
+        Shortlet issues run through the same maintenance engine as the rest of NidraQ — just filtered to your
         units, with guest impact in view.
       </p>
 

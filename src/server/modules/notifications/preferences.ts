@@ -32,7 +32,7 @@ export interface UpdateWhatsAppConsentInput {
 
 /**
  * The only way whatsappOptIn is ever set true. Recording consentAt/source
- * here (never inferred elsewhere) is what lets EstateOS honestly say a
+ * here (never inferred elsewhere) is what lets NidraQ honestly say a
  * WhatsApp send was actually authorized, not just "we had a number."
  */
 export async function updateWhatsAppConsent(

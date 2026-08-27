@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * EstateOS brand tokens. Each --color-* var below auto-generates Tailwind
+ * NidraQ brand tokens. Each --color-* var below auto-generates Tailwind
  * utilities (bg-primary, text-foreground-muted, ring-primary/50, etc).
  * Light-mode only by design — see the design-refresh plan for why a
  * toggleable dark theme is out of scope; nav/hero/footer surfaces that

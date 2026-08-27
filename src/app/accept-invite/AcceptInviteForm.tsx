@@ -44,7 +44,7 @@ export function AcceptInviteForm({
   if (state.status === "success") {
     return (
       <div className="space-y-4 text-center" role="status" aria-live="polite">
-        <h1 className="text-xl font-semibold tracking-tight">Welcome to EstateOS</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Welcome to NidraQ</h1>
         <p className="text-sm text-foreground-muted">
           Your resident account for {estateName} is ready. Sign in to view your bills, invite visitors, and more.
         </p>
@@ -63,8 +63,8 @@ export function AcceptInviteForm({
         <h1 className="text-xl font-semibold tracking-tight">Hi {firstName}, welcome to {estateName}</h1>
         <p className="mt-2 text-sm text-foreground-muted">
           {hasExistingAccount
-            ? `We found an existing EstateOS account for ${email} — accept below to link your resident access to it.`
-            : `Create a password for ${email} to activate your EstateOS resident portal.`}
+            ? `We found an existing NidraQ account for ${email} — accept below to link your resident access to it.`
+            : `Create a password for ${email} to activate your NidraQ resident portal.`}
         </p>
       </div>
       <form action={formAction} className="space-y-4">

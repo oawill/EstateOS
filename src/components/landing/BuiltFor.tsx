@@ -46,7 +46,7 @@ const CUSTOMER_TYPES: CustomerType[] = [
     title: "Serviced Apartments & Shortlets",
     description: "For shortlet owners and serviced-apartment operators — a dedicated product experience.",
     highlights: ["Reservations", "Guests", "Housekeeping", "Shortlet maintenance"],
-    cta: { label: "Explore EstateOS Shortlet", href: "/#shortlet" },
+    cta: { label: "Explore NidraQ Shortlet", href: "/#shortlet" },
   },
 ];
 
@@ -58,7 +58,7 @@ export function BuiltFor() {
           <p className="text-xs font-semibold uppercase tracking-wide text-primary">Who it&apos;s for</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight">One Platform. Different Communities.</h2>
           <p className="mt-4 text-foreground-muted">
-            EstateOS adapts to the way different communities, properties and operators work — while keeping people,
+            NidraQ adapts to the way different communities, properties and operators work — while keeping people,
             payments, access and operations connected.
           </p>
         </div>

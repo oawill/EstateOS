@@ -31,7 +31,7 @@ export default async function ShortletLayout({
       <header className="border-b border-border bg-navy text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div>
-            <p className="text-sm font-semibold">EstateOS Shortlet</p>
+            <p className="text-sm font-semibold">NidraQ Shortlet</p>
             <p className="text-xs text-white/60">{membership.estateName}</p>
           </div>
           <Link href={`/${estateSlug}/dashboard`} className="text-sm font-medium text-white/70 hover:text-white">

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/shared/ui";
+import { BRAND } from "@/lib/brand";
 import { MobileNav } from "./MobileNav";
 
 const NAV_LINKS = [
@@ -15,8 +16,8 @@ export function LandingHeader() {
     <header className="sticky top-0 z-30 border-b border-white/10 bg-navy-deep/95 backdrop-blur">
       <div className="relative mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
         <Link href="/" className="flex items-center gap-2.5">
-          <Image src="/logo.svg" alt="EstateOS" width={32} height={32} className="rounded-md" priority />
-          <span className="text-sm font-semibold text-white">EstateOS</span>
+          <Image src="/logo.svg" alt={BRAND.name} width={32} height={32} className="rounded-md" priority />
+          <span className="text-sm font-semibold text-white">{BRAND.name}</span>
         </Link>
 
         <nav className="hidden items-center gap-1 sm:flex" aria-label="Primary">

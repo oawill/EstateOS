@@ -75,7 +75,7 @@ export async function createTicket(estateId: string, residentId: string, actorUs
 }
 
 /**
- * EstateOS Shortlet's own "report issue" path — reuses this same engine
+ * NidraQ Shortlet's own "report issue" path — reuses this same engine
  * (transitionTicket, priorities, statuses) rather than a parallel Shortlet
  * maintenance system, per the product-architecture brief. shortletUnitId is
  * set instead of residentId; every residential path above never touches

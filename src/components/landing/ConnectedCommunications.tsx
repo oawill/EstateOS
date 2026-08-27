@@ -8,10 +8,10 @@ export function ConnectedCommunications() {
           <p className="text-sm font-medium text-foreground-muted">Connected communications</p>
           <h2 className="mt-1 text-3xl font-semibold tracking-tight">Built for WhatsApp-ready communication.</h2>
           <p className="mt-4 max-w-lg text-foreground-muted">
-            EstateOS is architected around a shared notification service — one system deciding what to send, to whom
+            NidraQ is architected around a shared notification service — one system deciding what to send, to whom
             and through which channel — so bills, payment confirmations, visitor updates and maintenance status
             changes are ready to reach residents on WhatsApp as that channel comes online, alongside in-app and
-            email. EstateOS always remains the system of record; WhatsApp is a delivery channel, not a database.
+            email. NidraQ always remains the system of record; WhatsApp is a delivery channel, not a database.
           </p>
         </div>
 

@@ -31,7 +31,7 @@ export function ForgotPasswordForm() {
       <div className="space-y-4 text-center" role="status" aria-live="polite">
         <h1 className="text-xl font-semibold tracking-tight">Check your email</h1>
         <p className="text-sm text-foreground-muted">
-          If an EstateOS account exists for that email address, we&apos;ve sent password reset instructions.
+          If a NidraQ account exists for that email address, we&apos;ve sent password reset instructions.
         </p>
         <div className="border-t border-border pt-4 text-sm text-foreground-muted">
           <p>Didn&apos;t receive the email?</p>
@@ -58,7 +58,7 @@ export function ForgotPasswordForm() {
       <div className="text-center">
         <h1 className="text-xl font-semibold tracking-tight">Forgot your password?</h1>
         <p className="mt-2 text-sm text-foreground-muted">
-          Enter the email address associated with your EstateOS account and we&apos;ll send you instructions to reset
+          Enter the email address associated with your NidraQ account and we&apos;ll send you instructions to reset
           your password.
         </p>
       </div>

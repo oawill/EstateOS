@@ -19,7 +19,7 @@ async function main() {
     update: {},
     create: {
       email: "admin@estateos.ng",
-      name: "EstateOS Admin",
+      name: "NidraQ Admin",
       passwordHash,
       isPlatformAdmin: true,
     },

@@ -22,9 +22,9 @@ export default async function ResetPasswordPage({
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <Link href="/">
-            <Image src="/logo.svg" alt="EstateOS" width={56} height={56} className="mx-auto rounded-xl" priority />
+            <Image src="/logo.svg" alt="NidraQ" width={56} height={56} className="mx-auto rounded-xl" priority />
           </Link>
-          <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground-muted">EstateOS</h2>
+          <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground-muted">NidraQ</h2>
         </div>
         <Card>{validity === "valid" && token ? <ResetPasswordForm token={token} /> : <InvalidLink />}</Card>
       </div>

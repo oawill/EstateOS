@@ -237,7 +237,7 @@ export function DemoRequestForm() {
           <Checkbox
             name="consent"
             required
-            label="I agree that EstateOS may contact me regarding my demo request. *"
+            label="I agree that NidraQ may contact me regarding my demo request. *"
           />
         </div>
 

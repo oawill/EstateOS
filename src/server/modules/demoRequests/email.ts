@@ -24,7 +24,7 @@ async function sendEmail(input: { to: string; subject: string; text: string }): 
     return;
   }
 
-  const from = process.env.EMAIL_FROM ?? "EstateOS <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM ?? "NidraQ <onboarding@resend.dev>";
 
   try {
     const result = await client.emails.send({ from, to: input.to, subject: input.subject, text: input.text });
@@ -61,7 +61,7 @@ export async function sendCustomerServiceNotification(request: DemoRequest): Pro
   const portalUrl = `${getBaseUrl()}/platform/demo-requests/${request.id}`;
   const wantsShortlet = request.interestedFeatures.includes("SHORTLET_MANAGEMENT");
 
-  const text = `New EstateOS Demo Request
+  const text = `New NidraQ Demo Request
 
 Reference: ${request.referenceNumber}
 Name: ${request.fullName}
@@ -74,7 +74,7 @@ Units: ${formatUnitRange(request.unitRange)}${request.numberOfUnits ? ` (${reque
 
 Main challenge: ${request.primaryChallenge ? request.primaryChallenge.replaceAll("_", " ") : "Not specified"}
 Features interested in: ${formatList(request.interestedFeatures)}
-EstateOS Shortlet interest: ${wantsShortlet ? "Yes" : "No"}${wantsShortlet && request.shortletUnits ? ` (${request.shortletUnits} units)` : ""}
+NidraQ Shortlet interest: ${wantsShortlet ? "Yes" : "No"}${wantsShortlet && request.shortletUnits ? ` (${request.shortletUnits} units)` : ""}
 
 Preferred demo date/time: ${formatDate(request.preferredDemoDate)}${request.preferredDemoTime ? `, ${request.preferredDemoTime}` : ""}${request.timezone ? ` (${request.timezone})` : ""}
 
@@ -86,7 +86,7 @@ Open in the Super Admin portal: ${portalUrl}
 
   await sendEmail({
     to: customerServiceEmail,
-    subject: `New EstateOS Demo Request — ${request.organizationName} — ${request.country}`,
+    subject: `New NidraQ Demo Request — ${request.organizationName} — ${request.country}`,
     text,
   });
 }
@@ -99,7 +99,7 @@ export async function sendProspectConfirmation(request: DemoRequest): Promise<vo
 
   const text = `Hi ${request.fullName},
 
-Thank you for your interest in EstateOS. We've received your demo request and our team will review your requirements and contact you to confirm the session.
+Thank you for your interest in NidraQ. We've received your demo request and our team will review your requirements and contact you to confirm the session.
 
 Your reference number is: ${request.referenceNumber}
 ${timingLine}
@@ -107,12 +107,12 @@ Please note this confirms receipt only — it does not confirm your preferred da
 
 If you have any questions in the meantime, just reply to this email.
 
-— The EstateOS Team
+— The NidraQ Team
 `;
 
   await sendEmail({
     to: request.email,
-    subject: "We received your EstateOS demo request",
+    subject: "We received your NidraQ demo request",
     text,
   });
 }

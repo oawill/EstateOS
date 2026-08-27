@@ -8,7 +8,7 @@ export function ShortletPromo() {
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
           <div>
             <p className="text-sm font-medium text-foreground-muted">
-              EstateOS <span className="text-primary">Shortlet</span>
+              NidraQ <span className="text-primary">Shortlet</span>
             </p>
             <h2 className="mt-1 text-3xl font-semibold tracking-tight">Run your shortlet operation from reservation to checkout.</h2>
             <p className="mt-4 max-w-lg text-foreground-muted">

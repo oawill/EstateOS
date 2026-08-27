@@ -18,7 +18,7 @@ export default async function ImportResidentsPage({ params }: { params: Promise<
         estateSlug={estateSlug}
         entityLabel="residents"
         templateCsv={RESIDENT_IMPORT_TEMPLATE}
-        templateFilename="estateos-residents-template.csv"
+        templateFilename="nidraq-residents-template.csv"
         columns={COLUMNS}
         validateAction={validateResidentImportAction}
         confirmAction={confirmResidentImportAction}

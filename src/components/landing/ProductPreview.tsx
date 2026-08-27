@@ -24,7 +24,7 @@ const ROLES: RoleContent[] = [
   {
     id: "manager",
     label: "Estate Manager",
-    headerTitle: "EstateOS — Estate Manager",
+    headerTitle: "NidraQ — Estate Manager",
     kpis: [
       { label: "Total Collected", value: "₦48.6M", tone: "success" },
       { label: "Outstanding", value: "₦7.2M", tone: "warning" },
@@ -46,7 +46,7 @@ const ROLES: RoleContent[] = [
   {
     id: "resident",
     label: "Resident",
-    headerTitle: "EstateOS — Resident",
+    headerTitle: "NidraQ — Resident",
     kpis: [
       { label: "Balance Due", value: "₦125,000", tone: "danger" },
       { label: "Utility Balance", value: "₦18,400", tone: "gray" },
@@ -61,7 +61,7 @@ const ROLES: RoleContent[] = [
   {
     id: "security",
     label: "Security",
-    headerTitle: "EstateOS — Security",
+    headerTitle: "NidraQ — Security",
     kpis: [
       { label: "Visitors Expected", value: "24", tone: "gray" },
       { label: "Visitors Inside", value: "9", tone: "neutral" },
@@ -77,7 +77,7 @@ const ROLES: RoleContent[] = [
   {
     id: "finance",
     label: "Finance",
-    headerTitle: "EstateOS — Finance",
+    headerTitle: "NidraQ — Finance",
     kpis: [
       { label: "Collected", value: "₦48.6M", tone: "success" },
       { label: "Outstanding", value: "₦7.2M", tone: "warning" },

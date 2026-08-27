@@ -26,7 +26,7 @@ export function formatNaira(amountKobo: number): string {
   return formatMoney(amountKobo, "NGN", "en-NG");
 }
 
-// Generic minor-unit currency formatter for EstateOS Shortlet, which is
+// Generic minor-unit currency formatter for NidraQ Shortlet, which is
 // architected for multiple currencies (see ShortletSettings.defaultCurrency)
 // rather than hardcoded to Naira like the residential billing helper above.
 export function formatCurrency(amountMinor: number, currency: string, locale = "en-US"): string {

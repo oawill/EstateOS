@@ -36,12 +36,12 @@ async function sendInviteEmail(to: string, estateName: string, residentFirstName
     return;
   }
 
-  const from = process.env.EMAIL_FROM ?? "EstateOS <onboarding@resend.dev>";
-  const text = `You're invited to EstateOS
+  const from = process.env.EMAIL_FROM ?? "NidraQ <onboarding@resend.dev>";
+  const text = `You're invited to NidraQ
 
 Hi ${residentFirstName},
 
-${estateName} has set up your EstateOS resident account. EstateOS is where you can view and pay bills, invite visitors and generate gate passes, report maintenance issues, and read community announcements.
+${estateName} has set up your NidraQ resident account. NidraQ is where you can view and pay bills, invite visitors and generate gate passes, report maintenance issues, and read community announcements.
 
 Accept your invitation: ${acceptUrl}
 
@@ -49,7 +49,7 @@ This link is valid for 7 days. If you weren't expecting this, you can safely ign
 `;
 
   try {
-    const result = await client.emails.send({ from, to, subject: `You're invited to EstateOS — ${estateName}`, text });
+    const result = await client.emails.send({ from, to, subject: `You're invited to NidraQ — ${estateName}`, text });
     if (result.error) console.error("[residents/invite] Resend rejected invite email:", result.error);
   } catch (error) {
     console.error("[residents/invite] Failed to send invite email:", error);
@@ -64,7 +64,7 @@ This link is valid for 7 days. If you weren't expecting this, you can safely ign
 export async function inviteResident(estateId: string, actorUserId: string, residentId: string) {
   const resident = await scoped(estateId).resident.findById(residentId);
   if (!resident) throw new NotFoundError("Resident");
-  if (resident.userId) throw new ForbiddenError("This resident already has an active EstateOS account");
+  if (resident.userId) throw new ForbiddenError("This resident already has an active NidraQ account");
   if (!resident.email) throw new ForbiddenError("Add an email address for this resident before inviting them");
 
   await prisma.residentInviteToken.updateMany({
@@ -100,7 +100,7 @@ export interface InviteDetails {
   firstName: string;
   email: string;
   // Tells the accept-invite page whether to collect a new password at all
-  // — an email that already has an EstateOS account gets linked to it
+  // — an email that already has a NidraQ account gets linked to it
   // as-is, never prompted to (accidentally) overwrite its real password.
   hasExistingAccount: boolean;
 }
@@ -136,7 +136,7 @@ export async function checkResidentInvite(rawToken: string): Promise<{ validity:
 
 /**
  * Consumes the token and activates portal access: finds-or-creates the
- * User for this email (never a duplicate — an existing EstateOS identity
+ * User for this email (never a duplicate — an existing NidraQ identity
  * is linked, not cloned), grants an EstateMember(RESIDENT) row for this
  * estate if one doesn't already exist, and links Resident.userId. Returns
  * null if the token can't be consumed (already used/expired/unknown),

@@ -18,7 +18,7 @@ export default async function ImportPropertiesPage({ params }: { params: Promise
         estateSlug={estateSlug}
         entityLabel="properties"
         templateCsv={PROPERTY_IMPORT_TEMPLATE}
-        templateFilename="estateos-properties-template.csv"
+        templateFilename="nidraq-properties-template.csv"
         columns={COLUMNS}
         validateAction={validatePropertyImportAction}
         confirmAction={confirmPropertyImportAction}

@@ -25,7 +25,9 @@ export function SecurityGateOperations() {
     <section id="security-gate" className="mx-auto max-w-6xl px-4 py-20">
       <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
         <div>
-          <p className="text-sm font-medium text-foreground-muted">A core EstateOS capability.</p>
+          <p className="text-sm font-medium text-foreground-muted">
+            NidraQ <span className="text-primary">Access</span>
+          </p>
           <h2 className="mt-1 text-3xl font-semibold tracking-tight">Security & Gate Operations</h2>
           <p className="mt-4 max-w-lg text-foreground-muted">
             Give your security team the tools to control access confidently. Verify visitors, manage vehicles,

@@ -10,7 +10,7 @@ export default async function AccountSecurityPage() {
     <div className="mx-auto w-full max-w-md space-y-6 px-4 py-12">
       <div>
         <h1 className="text-xl font-semibold">Security</h1>
-        <p className="mt-1 text-sm text-foreground-muted">Manage your EstateOS account password.</p>
+        <p className="mt-1 text-sm text-foreground-muted">Manage your NidraQ account password.</p>
       </div>
       <Card>
         <h2 className="mb-3 font-medium">Change Password</h2>
