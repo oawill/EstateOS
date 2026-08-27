@@ -1,0 +1,126 @@
+import { KpiCard } from "@/components/shared/KpiCard";
+import { Button } from "@/components/shared/ui";
+
+const KPIS = [
+  { label: "Total Collected", value: "₦48.6M", tone: "success" as const },
+  { label: "Outstanding", value: "₦7.2M", tone: "warning" as const },
+  { label: "Collection Rate", value: "87%", tone: "neutral" as const },
+  { label: "Residents", value: "1,243", tone: "gray" as const },
+];
+
+const ACTIVITY = ["Payment received — Block A, Unit 12", "Visitor check-in — Block C gate", "Maintenance request — Street 4 lighting"];
+
+const QUICK_ACTIONS = ["Visitors", "Maintenance", "Community", "Bills"];
+
+/** Abstract skyline silhouette — no real photography exists in this repo, so the "property" backdrop is a hand-authored SVG in the same geometric language as the logo mark, not a photo. Purely decorative. */
+function SkylineBackdrop() {
+  return (
+    <svg
+      viewBox="0 0 500 220"
+      preserveAspectRatio="xMidYMax slice"
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]"
+    >
+      {[
+        [0, 90, 60, 130],
+        [65, 40, 110, 180],
+        [120, 70, 165, 150],
+        [175, 20, 230, 200],
+        [240, 60, 285, 160],
+        [295, 100, 340, 120],
+        [350, 30, 405, 190],
+        [415, 75, 460, 145],
+        [470, 55, 500, 165],
+      ].map(([x1, y1, x2], i) => (
+        <rect key={i} x={x1} y={y1} width={x2 - x1} height={220 - y1} fill="white" />
+      ))}
+    </svg>
+  );
+}
+
+function TrendSparkline() {
+  return (
+    <svg viewBox="0 0 200 50" className="h-12 w-full" aria-hidden="true">
+      <polyline
+        points="0,38 25,30 50,34 75,18 100,24 125,12 150,20 175,8 200,14"
+        fill="none"
+        stroke="var(--color-primary)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function ProductPreview() {
+  return (
+    <div className="relative mx-auto mt-12 max-w-lg lg:mx-0 lg:mt-0">
+      <SkylineBackdrop />
+
+      {/* Desktop dashboard mockup */}
+      <div className="relative rounded-xl border border-white/10 bg-navy p-2 shadow-2xl">
+        <div className="overflow-hidden rounded-lg bg-surface">
+          <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-2.5">
+            <span className="text-xs font-semibold text-foreground">EstateOS Dashboard</span>
+            <div className="flex gap-1" aria-hidden="true">
+              <span className="h-2 w-2 rounded-full bg-border" />
+              <span className="h-2 w-2 rounded-full bg-border" />
+            </div>
+          </div>
+          <div className="p-4">
+            <p className="text-xs font-medium text-foreground-muted">Dashboard Overview</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {KPIS.map((kpi) => (
+                <div key={kpi.label} className="scale-[0.92] origin-top-left">
+                  <KpiCard label={kpi.label} value={kpi.value} tone={kpi.tone} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 rounded-lg border border-border p-3">
+              <p className="text-xs font-medium text-foreground-muted">Collections trend</p>
+              <TrendSparkline />
+            </div>
+            <div className="mt-3 space-y-1.5">
+              <p className="text-xs font-medium text-foreground-muted">Recent activity</p>
+              {ACTIVITY.map((item) => (
+                <p key={item} className="truncate text-xs text-foreground-muted">
+                  {item}
+                </p>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto h-2 w-1/3 rounded-b-lg bg-navy-light" aria-hidden="true" />
+      </div>
+
+      {/* Resident mobile app mockup */}
+      <div className="absolute -bottom-10 -right-4 w-40 rounded-[1.5rem] border border-white/10 bg-navy p-1.5 shadow-2xl sm:-right-8 sm:w-44">
+        <div className="overflow-hidden rounded-[1.1rem] bg-surface">
+          <div className="flex justify-center bg-navy py-1" aria-hidden="true">
+            <span className="h-1 w-8 rounded-full bg-white/30" />
+          </div>
+          <div className="p-3">
+            <p className="text-[11px] text-foreground-muted">Good morning,</p>
+            <p className="text-xs font-semibold text-foreground">Adebayo</p>
+            <div className="mt-2 rounded-lg bg-navy p-2.5 text-white">
+              <p className="text-[9px] text-white/60">Wallet Balance</p>
+              <p className="text-sm font-semibold">₦125,000</p>
+              <Button type="button" className="mt-1.5 !w-full !py-1.5 !text-[10px]">
+                Pay Now
+              </Button>
+            </div>
+            <p className="mt-2 text-[9px] font-medium text-foreground-muted">Quick Actions</p>
+            <div className="mt-1 grid grid-cols-2 gap-1">
+              {QUICK_ACTIONS.map((action) => (
+                <div key={action} className="rounded-md bg-surface-muted px-1.5 py-1.5 text-center text-[9px] font-medium text-foreground">
+                  {action}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
