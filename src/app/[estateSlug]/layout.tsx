@@ -3,6 +3,8 @@ import { Role } from "@prisma/client";
 import { signOut } from "@/server/auth/config";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstateMember } from "@/server/auth/session";
+import { hasPermission } from "@/server/auth/permissions";
+import { isShortletEnabled } from "@/server/modules/shortlet/settings";
 import { EstateNav } from "./EstateNav";
 
 const NAV_BY_ROLE: Record<Role, { href: string; label: string }[]> = {
@@ -53,7 +55,15 @@ export default async function EstateLayout({
 }) {
   const { estateSlug } = await params;
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
-  const nav = NAV_BY_ROLE[membership.role];
+  const nav = [...NAV_BY_ROLE[membership.role]];
+
+  // Shortlet is a separately-entitled module (see platform admin's Shortlet
+  // toggle) with its own nav/layout under /shortlet — this is the one entry
+  // point into it from the residential experience, not a merged nav item.
+  const shortletEnabled = await isShortletEnabled(membership.estateId);
+  if (shortletEnabled && hasPermission(membership.role, "shortlet-properties:*")) {
+    nav.push({ href: "shortlet", label: "Shortlet" });
+  }
 
   return (
     <div className="flex min-h-screen flex-col">

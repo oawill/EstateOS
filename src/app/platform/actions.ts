@@ -4,11 +4,18 @@ import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/server/auth/guards";
 import { assignPlanSchema } from "@/server/modules/platform/plansSchema";
 import { assignPlan, setEstateSubscriptionStatus } from "@/server/modules/platform/service";
+import { setShortletEnabled } from "@/server/modules/shortlet/settings";
 
 export async function toggleEstateStatusAction(estateId: string, status: "ACTIVE" | "SUSPENDED") {
   const user = await requirePlatformAdmin();
   await setEstateSubscriptionStatus(estateId, user.id, status);
   revalidatePath("/platform/estates");
+  revalidatePath(`/platform/estates/${estateId}`);
+}
+
+export async function toggleShortletEnabledAction(estateId: string, enabled: boolean) {
+  const user = await requirePlatformAdmin();
+  await setShortletEnabled(estateId, user.id, enabled);
   revalidatePath(`/platform/estates/${estateId}`);
 }
 

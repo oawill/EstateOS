@@ -43,7 +43,12 @@ export type Permission =
   | "community-events:*"
   | "community-reports:create"
   | "community-moderation:*"
-  | "community-settings:*";
+  | "community-settings:*"
+  | "shortlet-properties:*"
+  | "shortlet-units:*"
+  | "shortlet-reservations:*"
+  | "shortlet-guests:*"
+  | "shortlet-availability:*";
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.PLATFORM_SUPER_ADMIN]: ["platform:*"],
@@ -75,6 +80,11 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "community-reports:create",
     "community-moderation:*",
     "community-settings:*",
+    "shortlet-properties:*",
+    "shortlet-units:*",
+    "shortlet-reservations:*",
+    "shortlet-guests:*",
+    "shortlet-availability:*",
   ],
 
   [Role.FINANCE]: ["charges:*", "invoices:*", "payments:*", "receipts:*", "reports:read"],

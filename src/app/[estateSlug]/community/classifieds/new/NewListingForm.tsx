@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button, Card, Checkbox, FormError, Input, Label, Select, Textarea } from "@/components/shared/ui";
 import { ImageUploader } from "@/components/shared/ImageUploader";
+import { getUploadUrlAction } from "@/app/[estateSlug]/community/uploadActions";
 import { createListingAction, type ListingFormState } from "../actions";
 
 const CONDITIONS: [string, string][] = [
@@ -137,7 +138,7 @@ export function NewListingForm({ estateSlug, categories }: { estateSlug: string;
 
         <div>
           <Label>Photos</Label>
-          <ImageUploader estateSlug={estateSlug} name="imageUrls" />
+          <ImageUploader name="imageUrls" getUploadUrl={(filename, contentType) => getUploadUrlAction(estateSlug, filename, contentType)} />
         </div>
 
         <Button type="submit" className="w-full" disabled={pending}>

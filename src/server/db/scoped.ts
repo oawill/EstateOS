@@ -1,5 +1,6 @@
 import type {
   Announcement,
+  AvailabilityBlock,
   Block,
   Charge,
   ClassifiedCategory,
@@ -16,6 +17,7 @@ import type {
   CommunitySettings,
   EventRsvp,
   GateEntry,
+  Guest,
   Invoice,
   ListingInquiry,
   MaintenanceComment,
@@ -26,7 +28,12 @@ import type {
   Prisma,
   Property,
   Receipt,
+  Reservation,
   Resident,
+  ShortletProperty,
+  ShortletPropertyImage,
+  ShortletSettings,
+  ShortletUnit,
   Street,
   Unit,
   UtilityBill,
@@ -360,6 +367,55 @@ export function scoped(estateId: string) {
       Omit<Prisma.CommunityReportUncheckedCreateInput, "estateId" | "id" | "createdAt">,
       Prisma.CommunityReportUncheckedUpdateInput
     >(prisma.communityReport, "CommunityReport", estateId),
+
+    shortletSettings: makeScopedDelegate<
+      Prisma.ShortletSettingsWhereInput,
+      ShortletSettings,
+      Omit<Prisma.ShortletSettingsUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.ShortletSettingsUpdateInput
+    >(prisma.shortletSettings, "ShortletSettings", estateId),
+
+    shortletProperty: makeScopedDelegate<
+      Prisma.ShortletPropertyWhereInput,
+      ShortletProperty,
+      Omit<Prisma.ShortletPropertyUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.ShortletPropertyUncheckedUpdateInput
+    >(prisma.shortletProperty, "ShortletProperty", estateId),
+
+    shortletPropertyImage: makeScopedDelegate<
+      Prisma.ShortletPropertyImageWhereInput,
+      ShortletPropertyImage,
+      Omit<Prisma.ShortletPropertyImageUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.ShortletPropertyImageUpdateInput
+    >(prisma.shortletPropertyImage, "ShortletPropertyImage", estateId),
+
+    shortletUnit: makeScopedDelegate<
+      Prisma.ShortletUnitWhereInput,
+      ShortletUnit,
+      Omit<Prisma.ShortletUnitUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.ShortletUnitUncheckedUpdateInput
+    >(prisma.shortletUnit, "ShortletUnit", estateId),
+
+    guest: makeScopedDelegate<
+      Prisma.GuestWhereInput,
+      Guest,
+      Omit<Prisma.GuestUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.GuestUpdateInput
+    >(prisma.guest, "Guest", estateId),
+
+    reservation: makeScopedDelegate<
+      Prisma.ReservationWhereInput,
+      Reservation,
+      Omit<Prisma.ReservationUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.ReservationUncheckedUpdateInput
+    >(prisma.reservation, "Reservation", estateId),
+
+    availabilityBlock: makeScopedDelegate<
+      Prisma.AvailabilityBlockWhereInput,
+      AvailabilityBlock,
+      Omit<Prisma.AvailabilityBlockUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.AvailabilityBlockUncheckedUpdateInput
+    >(prisma.availabilityBlock, "AvailabilityBlock", estateId),
   };
 }
 

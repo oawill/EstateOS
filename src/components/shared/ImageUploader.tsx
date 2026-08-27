@@ -1,7 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { getUploadUrlAction } from "@/app/[estateSlug]/community/uploadActions";
+
+export interface UploadUrlResult {
+  uploadUrl?: string;
+  publicUrl?: string;
+  error?: string;
+}
 
 const MAX_IMAGES = 6;
 
@@ -11,9 +16,19 @@ const MAX_IMAGES = 6;
  * which the caller submits as hidden `name` inputs alongside the rest of
  * the surrounding form. Silently becomes a no-op with an explanatory note
  * if photo storage isn't configured for this estate — every other field
- * in the form still works.
+ * in the form still works. `getUploadUrl` is injected so this component
+ * isn't coupled to any one module's Server Action (Community and Shortlet
+ * each have their own key-prefixing action).
  */
-export function ImageUploader({ estateSlug, name, initialUrls = [] }: { estateSlug: string; name: string; initialUrls?: string[] }) {
+export function ImageUploader({
+  name,
+  initialUrls = [],
+  getUploadUrl,
+}: {
+  name: string;
+  initialUrls?: string[];
+  getUploadUrl: (filename: string, contentType: string) => Promise<UploadUrlResult>;
+}) {
   const [urls, setUrls] = useState<string[]>(initialUrls);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -29,7 +44,7 @@ export function ImageUploader({ estateSlug, name, initialUrls = [] }: { estateSl
       for (const file of Array.from(files)) {
         if (urls.length >= MAX_IMAGES) break;
 
-        const result = await getUploadUrlAction(estateSlug, file.name, file.type);
+        const result = await getUploadUrl(file.name, file.type);
         if (result.error || !result.uploadUrl || !result.publicUrl) {
           if (result.error?.includes("aren't set up")) setUnavailable(true);
           setError(result.error ?? "Couldn't upload that photo.");

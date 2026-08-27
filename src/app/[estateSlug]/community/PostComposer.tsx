@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button, Card, FormError, Select, Textarea } from "@/components/shared/ui";
 import { ImageUploader } from "@/components/shared/ImageUploader";
+import { getUploadUrlAction } from "./uploadActions";
 import { createPostAction, type CommunityActionState } from "./actions";
 
 const POST_TYPES: [string, string][] = [
@@ -46,7 +47,7 @@ export function PostComposer({ estateSlug }: { estateSlug: string }) {
             </Select>
           )}
         </div>
-        <ImageUploader estateSlug={estateSlug} name="imageUrls" />
+        <ImageUploader name="imageUrls" getUploadUrl={(filename, contentType) => getUploadUrlAction(estateSlug, filename, contentType)} />
         <Button type="submit" disabled={pending}>
           {pending ? "Posting…" : "Post"}
         </Button>

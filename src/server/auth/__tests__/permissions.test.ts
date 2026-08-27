@@ -72,4 +72,18 @@ describe("RBAC permission map", () => {
       expect(hasPermission(role, "community-listings:*")).toBe(false);
     }
   });
+
+  it("only ESTATE_ADMIN has Shortlet access — every other role is forbidden", () => {
+    expect(hasPermission(Role.ESTATE_ADMIN, "shortlet-properties:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "shortlet-reservations:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "shortlet-guests:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "shortlet-units:*")).toBe(true);
+    expect(hasPermission(Role.ESTATE_ADMIN, "shortlet-availability:*")).toBe(true);
+
+    for (const role of [Role.RESIDENT, Role.FINANCE, Role.FACILITY_MANAGER, Role.SECURITY, Role.VENDOR, Role.PLATFORM_SUPER_ADMIN]) {
+      expect(hasPermission(role, "shortlet-properties:*")).toBe(false);
+      expect(hasPermission(role, "shortlet-reservations:*")).toBe(false);
+      expect(hasPermission(role, "shortlet-guests:*")).toBe(false);
+    }
+  });
 });

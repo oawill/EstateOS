@@ -4,7 +4,8 @@ import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
 import { getEstateDetail } from "@/server/modules/platform/service";
 import { listPlans } from "@/server/modules/platform/plans";
-import { toggleEstateStatusAction } from "../../actions";
+import { getOrCreateShortletSettings } from "@/server/modules/shortlet/settings";
+import { toggleEstateStatusAction, toggleShortletEnabledAction } from "../../actions";
 import { AssignPlanForm } from "./AssignPlanForm";
 
 const STATUS_TONE = {
@@ -26,6 +27,7 @@ export default async function PlatformEstateDetailPage({
     return getEstateDetail(estateId);
   });
   const plans = await listPlans();
+  const shortletSettings = await getOrCreateShortletSettings(estateId);
 
   return (
     <div className="space-y-6">
@@ -82,6 +84,33 @@ export default async function PlatformEstateDetailPage({
           currentTrialEndsAt={estate.trialEndsAt}
           plans={plans}
         />
+      </Card>
+
+      <Card>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-slate-700">EstateOS Shortlet</p>
+            <p className="mt-1 text-sm text-slate-500">
+              A subscription entitlement, not a self-serve toggle — enabling this gives estate admins access to the
+              Shortlet operations module.
+            </p>
+            <div className="mt-2">
+              <Badge tone={shortletSettings.enabled ? "success" : "neutral"}>
+                {shortletSettings.enabled ? "Enabled" : "Disabled"}
+              </Badge>
+            </div>
+          </div>
+          <form
+            action={async () => {
+              "use server";
+              await toggleShortletEnabledAction(estate.id, !shortletSettings.enabled);
+            }}
+          >
+            <Button type="submit" variant={shortletSettings.enabled ? "secondary" : "primary"}>
+              {shortletSettings.enabled ? "Disable" : "Enable"}
+            </Button>
+          </form>
+        </div>
       </Card>
 
       <div>
