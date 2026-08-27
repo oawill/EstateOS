@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { createResidentSchema, createVehicleSchema } from "@/server/modules/residents/schema";
 import { addVehicle, createResidentWithOccupancy, moveOutResident } from "@/server/modules/residents/service";
+import { inviteResident } from "@/server/modules/residents/invite";
 
 export interface CreateResidentFormState {
   error?: string;
@@ -56,4 +57,24 @@ export async function moveOutResidentAction(estateSlug: string, occupancyId: str
   const { user, membership } = await requireEstatePermission(estateSlug, "residents:*");
   await moveOutResident(membership.estateId, user.id, occupancyId);
   revalidatePath(`/${estateSlug}/residents`);
+}
+
+export interface InviteResidentActionState {
+  error?: string;
+  success?: boolean;
+}
+
+export async function inviteResidentAction(
+  estateSlug: string,
+  residentId: string,
+  _prevState: InviteResidentActionState,
+): Promise<InviteResidentActionState> {
+  const { user, membership } = await requireEstatePermission(estateSlug, "residents:*");
+  try {
+    await inviteResident(membership.estateId, user.id, residentId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Couldn't send the invite. Please try again." };
+  }
+  revalidatePath(`/${estateSlug}/residents`);
+  return { success: true };
 }

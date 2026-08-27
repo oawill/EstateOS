@@ -7,6 +7,7 @@ import { requireEstateMember } from "@/server/auth/session";
 import { hasPermission } from "@/server/auth/permissions";
 import { isShortletEnabled } from "@/server/modules/shortlet/settings";
 import { EstateNav, type EstateNavItem } from "./EstateNav";
+import { ResidentMobileNav } from "./ResidentMobileNav";
 
 // Grouped to match the EstateOS Finance/Access/Operations/Community/
 // Administration product architecture — hrefs are unchanged from before, so
@@ -69,6 +70,7 @@ export default async function EstateLayout({
   const { estateSlug } = await params;
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
   const nav = [...NAV_BY_ROLE[membership.role]];
+  const isResident = membership.role === Role.RESIDENT;
 
   // Shortlet is a separately-entitled module (see platform admin's Shortlet
   // toggle) with its own nav/layout under /shortlet — this is the one entry
@@ -107,9 +109,12 @@ export default async function EstateLayout({
             </form>
           </div>
         </div>
-        <EstateNav estateSlug={estateSlug} nav={nav} />
+        <div className={isResident ? "hidden sm:block" : undefined}>
+          <EstateNav estateSlug={estateSlug} nav={nav} />
+        </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+      <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-8 ${isResident ? "pb-24 sm:pb-8" : ""}`}>{children}</main>
+      {isResident && <ResidentMobileNav estateSlug={estateSlug} />}
     </div>
   );
 }

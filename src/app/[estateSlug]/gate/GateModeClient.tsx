@@ -8,7 +8,7 @@ const STATUS_LABEL: Record<GateLookupResult["status"], string> = {
   VALID: "VALID",
   EXPIRED: "EXPIRED",
   NOT_YET_STARTED: "NOT YET STARTED",
-  REVOKED: "REVOKED",
+  REVOKED: "CANCELLED",
   NOT_FOUND: "NOT FOUND",
 };
 

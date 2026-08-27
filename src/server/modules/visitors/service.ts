@@ -3,6 +3,7 @@ import { prisma } from "@/server/db/client";
 import { scoped } from "@/server/db/scoped";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
+import { dispatchNotification } from "@/server/modules/notifications/dispatch";
 import { verifyVisitorToken } from "./token";
 import type { CreateVisitorPassInput } from "./schema";
 
@@ -33,6 +34,7 @@ export async function createVisitorPass(
 
   const pass = await scoped(estateId).visitorPass.create({
     residentId,
+    passType: input.passType,
     visitorName: input.visitorName,
     visitorPhone: input.visitorPhone || null,
     vehicleNumber: input.vehicleNumber || null,
@@ -68,6 +70,37 @@ export async function getPassForResident(estateId: string, residentId: string, p
   });
   if (!pass || pass.residentId !== residentId) throw new NotFoundError("Visitor pass");
   return pass;
+}
+
+/**
+ * A resident can only cancel their own pass, and only while it's still
+ * usable — an already-expired or already-cancelled pass has nothing left
+ * to cancel. The PIN/QR become invalid immediately (passStatus reads
+ * isRevoked first); the row itself is never deleted, so it still shows up
+ * in history as Cancelled.
+ */
+export async function cancelVisitorPass(estateId: string, residentId: string, actorUserId: string, passId: string) {
+  const pass = await scoped(estateId).visitorPass.findById(passId);
+  if (!pass || pass.residentId !== residentId) throw new NotFoundError("Visitor pass");
+  if (pass.isRevoked) throw new ForbiddenError("This pass has already been cancelled");
+  if (pass.expiresAt < new Date()) throw new ForbiddenError("This pass has already expired");
+
+  const updated = await scoped(estateId).visitorPass.update(passId, {
+    isRevoked: true,
+    cancelledAt: new Date(),
+  });
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "visitor.pass_cancelled",
+    entityType: "VisitorPass",
+    entityId: passId,
+    before: { isRevoked: pass.isRevoked },
+    after: { isRevoked: updated.isRevoked },
+  });
+
+  return updated;
 }
 
 /** Pure status calculation shared by list displays and entry-code resolution. */
@@ -147,6 +180,13 @@ export async function checkInVisitor(
     entityType: "GateEntry",
     entityId: entry.id,
     after: entry,
+  });
+
+  await dispatchNotification(estateId, {
+    residentId: pass.residentId,
+    eventType: "visitor.arrived",
+    title: "Your visitor has arrived",
+    body: `${pass.visitorName} has arrived at ${gate}.`,
   });
 
   return entry;

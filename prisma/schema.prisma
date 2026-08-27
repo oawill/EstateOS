@@ -335,6 +335,12 @@ enum CommunityDisplayNamePreference {
   FIRST_NAME_LAST_INITIAL
 }
 
+enum VisitorPassType {
+  VISITOR
+  VEHICLE
+  DELIVERY
+}
+
 // ---------------------------------------------------------------------------
 // EstateOS Shortlet
 // ---------------------------------------------------------------------------
@@ -766,6 +772,10 @@ model Resident {
   phone                          String?
   emergencyContactName           String?
   emergencyContactPhone          String?
+  // Set when an admin sends (or resends) a portal invite — userId being
+  // set is what actually means "activated"; this is just for the admin
+  // UI to distinguish "never invited" from "invited, not yet accepted."
+  invitedAt                      DateTime?
   // Community preferences/moderation state — nullable, so an unset
   // preference falls back to the estate's CommunitySettings default.
   communityDisplayNamePreference CommunityDisplayNamePreference?
@@ -794,9 +804,27 @@ model Resident {
   eventRsvps             EventRsvp[]
   communityReports       CommunityReport[]
   listingInquiries       ListingInquiry[]
+  inviteTokens           ResidentInviteToken[]
 
   @@index([estateId])
   @@index([userId])
+}
+
+// Mirrors PasswordResetToken's shape exactly (hash-only storage,
+// single-use, short-lived) — this is "set your password and activate
+// your portal account" rather than "reset an existing password," so it's
+// keyed by residentId (who may not have a User yet) instead of userId.
+model ResidentInviteToken {
+  id         String    @id @default(cuid())
+  residentId String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([residentId])
 }
 
 // History of which Resident occupies which Unit, and in what capacity.
@@ -950,9 +978,14 @@ model Receipt {
 // directly rather than a separate reusable Visitor profile, since nothing
 // in this phase needs to reuse a visitor's details across visits.
 model VisitorPass {
-  id            String   @id @default(cuid())
+  id            String          @id @default(cuid())
   estateId      String
   residentId    String // host
+  // Purely a labeling/filtering concern for the resident-facing UI — every
+  // type shares the exact same underlying credential (PIN/QR/validity
+  // window). Adding a genuinely different access type later doesn't
+  // require a new model, just a new enum value.
+  passType      VisitorPassType @default(VISITOR)
   visitorName   String
   visitorPhone  String?
   vehicleNumber String?
@@ -963,8 +996,9 @@ model VisitorPass {
   // DB unique constraint, since permanently reserving PINs would
   // eventually exhaust the 1,000,000-combination space.
   pin           String
-  isRevoked     Boolean  @default(false)
-  createdAt     DateTime @default(now())
+  isRevoked     Boolean         @default(false)
+  cancelledAt   DateTime?
+  createdAt     DateTime        @default(now())
 
   estate      Estate      @relation(fields: [estateId], references: [id], onDelete: Cascade)
   resident    Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)

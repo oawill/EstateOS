@@ -59,7 +59,10 @@ export function MobileNav() {
           </nav>
           <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4">
             <Link href="/login" onClick={() => setOpen(false)} className="px-3 py-2 text-sm font-medium text-white/80 hover:text-white">
-              Log In
+              Resident Sign In
+            </Link>
+            <Link href="/login" onClick={() => setOpen(false)} className="px-3 py-2 text-sm font-medium text-white/80 hover:text-white">
+              Staff Log In
             </Link>
             <Link href="/request-demo" onClick={() => setOpen(false)}>
               <Button type="button" className="w-full">

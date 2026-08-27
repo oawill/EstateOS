@@ -4,6 +4,7 @@ import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { listResidents } from "@/server/modules/residents/service";
 import { moveOutResidentAction } from "./actions";
+import { InviteResidentButton } from "./InviteResidentButton";
 
 export default async function ResidentsPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
@@ -52,6 +53,14 @@ export default async function ResidentsPage({ params }: { params: Promise<{ esta
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     {occupancy ? <Badge tone="success">Current</Badge> : <Badge>Moved out</Badge>}
+                    {resident.userId ? (
+                      <Badge tone="info">Portal active</Badge>
+                    ) : resident.invitedAt ? (
+                      <Badge tone="warning">Invited</Badge>
+                    ) : (
+                      <Badge>No portal access</Badge>
+                    )}
+                    {!resident.userId && <InviteResidentButton estateSlug={estateSlug} residentId={resident.id} />}
                     {occupancy && (
                       <form
                         action={async () => {

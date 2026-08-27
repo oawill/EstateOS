@@ -42,7 +42,7 @@ describe("resolveEntryCode (integration)", () => {
 
   it("resolves VALID for a pass within its window, by PIN", async () => {
     const pass = await createVisitorPass(estateId, residentId, actorUserId, {
-      visitorName: "Valid Visitor",
+      passType: "VISITOR", visitorName: "Valid Visitor",
       startTime: new Date(Date.now() - 60_000),
       expiresAt: new Date(Date.now() + 60 * 60_000),
     });
@@ -53,7 +53,7 @@ describe("resolveEntryCode (integration)", () => {
 
   it("resolves VALID for a pass by its signed QR token", async () => {
     const pass = await createVisitorPass(estateId, residentId, actorUserId, {
-      visitorName: "QR Visitor",
+      passType: "VISITOR", visitorName: "QR Visitor",
       startTime: new Date(Date.now() - 60_000),
       expiresAt: new Date(Date.now() + 60 * 60_000),
     });
@@ -65,7 +65,7 @@ describe("resolveEntryCode (integration)", () => {
 
   it("resolves EXPIRED for a pass whose window has passed", async () => {
     const pass = await createVisitorPass(estateId, residentId, actorUserId, {
-      visitorName: "Expired Visitor",
+      passType: "VISITOR", visitorName: "Expired Visitor",
       startTime: new Date(Date.now() - 2 * 60 * 60_000),
       expiresAt: new Date(Date.now() - 60 * 60_000),
     });
@@ -76,7 +76,7 @@ describe("resolveEntryCode (integration)", () => {
 
   it("resolves NOT_YET_STARTED for a pass whose window hasn't begun", async () => {
     const pass = await createVisitorPass(estateId, residentId, actorUserId, {
-      visitorName: "Future Visitor",
+      passType: "VISITOR", visitorName: "Future Visitor",
       startTime: new Date(Date.now() + 60 * 60_000),
       expiresAt: new Date(Date.now() + 2 * 60 * 60_000),
     });
@@ -87,7 +87,7 @@ describe("resolveEntryCode (integration)", () => {
 
   it("resolves NOT_FOUND for a token whose estateId doesn't match the caller's estate", async () => {
     const pass = await createVisitorPass(estateId, residentId, actorUserId, {
-      visitorName: "Cross Tenant Visitor",
+      passType: "VISITOR", visitorName: "Cross Tenant Visitor",
       startTime: new Date(Date.now() - 60_000),
       expiresAt: new Date(Date.now() + 60 * 60_000),
     });
@@ -105,7 +105,7 @@ describe("resolveEntryCode (integration)", () => {
       data: {
         estateId,
         residentId,
-        visitorName: "Blocker",
+        passType: "VISITOR", visitorName: "Blocker",
         startTime: new Date(Date.now() - 60_000),
         expiresAt: new Date(Date.now() + 60 * 60_000),
         pin: "100000",
@@ -117,7 +117,7 @@ describe("resolveEntryCode (integration)", () => {
     randomSpy.mockReturnValueOnce(0.5); // -> "550000", free
     try {
       const pass = await createVisitorPass(estateId, residentId, actorUserId, {
-        visitorName: "New Visitor",
+        passType: "VISITOR", visitorName: "New Visitor",
         startTime: new Date(Date.now() - 60_000),
         expiresAt: new Date(Date.now() + 60 * 60_000),
       });
@@ -132,7 +132,7 @@ describe("resolveEntryCode (integration)", () => {
       data: {
         estateId,
         residentId,
-        visitorName: "Old Visitor",
+        passType: "VISITOR", visitorName: "Old Visitor",
         startTime: new Date(Date.now() - 2 * 60 * 60_000),
         expiresAt: new Date(Date.now() - 60 * 60_000), // already expired
         pin: "100000",
@@ -144,7 +144,7 @@ describe("resolveEntryCode (integration)", () => {
     const randomSpy = vi.spyOn(Math, "random").mockReturnValueOnce(0);
     try {
       const pass = await createVisitorPass(estateId, residentId, actorUserId, {
-        visitorName: "New Visitor",
+        passType: "VISITOR", visitorName: "New Visitor",
         startTime: new Date(Date.now() - 60_000),
         expiresAt: new Date(Date.now() + 60 * 60_000),
       });

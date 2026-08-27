@@ -1,10 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { NotFoundError } from "@/lib/errors";
 import { getResidentByUserId } from "@/server/modules/residents/service";
-import { createVisitorPass } from "@/server/modules/visitors/service";
+import { cancelVisitorPass, createVisitorPass } from "@/server/modules/visitors/service";
 import { createVisitorPassSchema } from "@/server/modules/visitors/schema";
 
 export interface CreateVisitorPassFormState {
@@ -21,6 +22,7 @@ export async function createVisitorPassAction(
   if (!resident) throw new NotFoundError("Resident profile");
 
   const parsed = createVisitorPassSchema.safeParse({
+    passType: formData.get("passType") || undefined,
     visitorName: formData.get("visitorName"),
     visitorPhone: formData.get("visitorPhone") || undefined,
     vehicleNumber: formData.get("vehicleNumber") || undefined,
@@ -34,4 +36,14 @@ export async function createVisitorPassAction(
 
   const pass = await createVisitorPass(membership.estateId, resident.id, user.id, parsed.data);
   redirect(`/${estateSlug}/visitors/${pass.id}`);
+}
+
+export async function cancelVisitorPassAction(estateSlug: string, passId: string) {
+  const { user, membership } = await requireEstatePermission(estateSlug, "own-visitors:*");
+  const resident = await getResidentByUserId(membership.estateId, user.id);
+  if (!resident) throw new NotFoundError("Resident profile");
+
+  await cancelVisitorPass(membership.estateId, resident.id, user.id, passId);
+  revalidatePath(`/${estateSlug}/visitors`);
+  revalidatePath(`/${estateSlug}/visitors/${passId}`);
 }

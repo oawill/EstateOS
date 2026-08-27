@@ -33,7 +33,10 @@ export function LandingHeader() {
 
         <div className="hidden items-center gap-4 sm:flex">
           <Link href="/login" className="text-sm font-medium text-white/70 hover:text-white">
-            Log In
+            Resident Sign In
+          </Link>
+          <Link href="/login" className="text-sm font-medium text-white/70 hover:text-white">
+            Staff Log In
           </Link>
           <Link href="/request-demo">
             <Button type="button">Request a Demo</Button>
