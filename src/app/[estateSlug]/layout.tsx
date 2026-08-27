@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Role } from "@prisma/client";
 import { signOut } from "@/server/auth/config";
 import { guardPage } from "@/server/auth/pageGuard";
@@ -90,16 +91,21 @@ export default async function EstateLayout({
               </p>
             </div>
           </div>
-          <form
-            action={async () => {
-              "use server";
-              await signOut({ redirectTo: "/login" });
-            }}
-          >
-            <button type="submit" className="text-sm text-foreground-muted hover:text-foreground">
-              Sign out
-            </button>
-          </form>
+          <div className="flex items-center gap-4">
+            <Link href="/account/security" className="text-sm text-foreground-muted hover:text-foreground">
+              Account
+            </Link>
+            <form
+              action={async () => {
+                "use server";
+                await signOut({ redirectTo: "/login" });
+              }}
+            >
+              <button type="submit" className="text-sm text-foreground-muted hover:text-foreground">
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
         <EstateNav estateSlug={estateSlug} nav={nav} />
       </header>

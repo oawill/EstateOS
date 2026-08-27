@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Button, FormError, Input, Label } from "@/components/shared/ui";
 import { loginAction, type LoginFormState } from "./actions";
 
@@ -17,7 +18,12 @@ export function LoginForm() {
         <Input id="email" name="email" type="email" required autoComplete="email" />
       </div>
       <div>
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Password</Label>
+          <Link href="/forgot-password" className="mb-1.5 text-sm font-medium text-primary underline underline-offset-4">
+            Forgot your password?
+          </Link>
+        </div>
         <Input id="password" name="password" type="password" required autoComplete="current-password" />
       </div>
       <Button type="submit" className="w-full" disabled={pending}>

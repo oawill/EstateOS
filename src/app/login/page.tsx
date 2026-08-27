@@ -3,7 +3,13 @@ import Link from "next/link";
 import { Card } from "@/components/shared/ui";
 import { LoginForm } from "./LoginForm";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ passwordChanged?: string }>;
+}) {
+  const { passwordChanged } = await searchParams;
+
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm space-y-6">
@@ -12,6 +18,11 @@ export default function LoginPage() {
           <h1 className="mt-3 text-2xl font-semibold tracking-tight">EstateOS</h1>
           <p className="mt-1 text-sm text-foreground-muted">Sign in to your estate</p>
         </div>
+        {passwordChanged && (
+          <p role="status" className="rounded-lg bg-success/10 px-3 py-2 text-center text-sm text-success">
+            Your password was changed. Please sign in again.
+          </p>
+        )}
         <Card>
           <LoginForm />
         </Card>

@@ -400,22 +400,61 @@ enum HousekeepingStatus {
 // A User is an authenticatable identity. It may or may not be linked to a
 // Resident profile, and may hold EstateMember roles in one or more estates.
 model User {
-  id              String   @id @default(cuid())
-  email           String?  @unique
-  phone           String?  @unique
-  passwordHash    String?
-  name            String
-  isPlatformAdmin Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String    @id @default(cuid())
+  email             String?   @unique
+  phone             String?   @unique
+  passwordHash      String?
+  name              String
+  isPlatformAdmin   Boolean   @default(false)
+  // Stamped on every successful password change (reset or authenticated
+  // change) — the JWT session callback compares this against the token's
+  // issued-at time to invalidate any session issued before the password
+  // changed, since Credentials+JWT auth has no server-side session store
+  // to revoke directly. See src/server/auth/config.ts.
+  passwordChangedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   memberships                EstateMember[]
   residentLinks              Resident[]
-  auditLogs                  AuditLog[]          @relation("ActorUser")
-  assignedMaintenanceTickets MaintenanceTicket[] @relation("MaintenanceAssignee")
-  assignedHousekeepingTasks  HousekeepingTask[]  @relation("HousekeepingAssignee")
-  assignedDemoRequests       DemoRequest[]       @relation("DemoRequestAssignee")
-  resolvedCommunityReports   CommunityReport[]   @relation("CommunityReportResolver")
+  auditLogs                  AuditLog[]           @relation("ActorUser")
+  assignedMaintenanceTickets MaintenanceTicket[]  @relation("MaintenanceAssignee")
+  assignedHousekeepingTasks  HousekeepingTask[]   @relation("HousekeepingAssignee")
+  assignedDemoRequests       DemoRequest[]        @relation("DemoRequestAssignee")
+  resolvedCommunityReports   CommunityReport[]    @relation("CommunityReportResolver")
+  passwordResetTokens        PasswordResetToken[]
+}
+
+// Only the SHA-256 hash of the raw token is ever stored — the raw,
+// high-entropy token exists only in memory and in the emailed link, never
+// at rest. Single-use (usedAt) and short-lived (expiresAt); a new request
+// invalidates any previous unused token for the same user (see
+// src/server/auth/passwordReset/service.ts).
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Not tied to User — a request for an email that doesn't exist must still
+// be counted, or the *absence* of throttling would itself reveal that an
+// email is unregistered. Deliberately just enough to rate-limit; not a
+// general-purpose security-event log (see AuditLog for that).
+model PasswordResetRequestLog {
+  id         String   @id @default(cuid())
+  emailLower String
+  ipHash     String?
+  createdAt  DateTime @default(now())
+
+  @@index([emailLower, createdAt])
+  @@index([ipHash, createdAt])
 }
 
 // ---------------------------------------------------------------------------
