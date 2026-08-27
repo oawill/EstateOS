@@ -59,7 +59,9 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
                       await approveManualPaymentAction(estateSlug, payment.id);
                     }}
                   >
-                    <Button type="submit">Approve</Button>
+                    <Button type="submit" variant="success">
+                      Approve
+                    </Button>
                   </form>
                   <form
                     action={async () => {

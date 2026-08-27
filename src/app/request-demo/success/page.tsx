@@ -11,7 +11,7 @@ export default async function DemoRequestSuccessPage({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col items-center justify-center px-4 py-12 text-center">
-      <Image src="/logo.png" alt="EstateOS" width={40} height={40} className="rounded-lg" priority />
+      <Image src="/logo.svg" alt="EstateOS" width={40} height={40} className="rounded-lg" priority />
       <Card className="mt-6 w-full">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-success">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6">

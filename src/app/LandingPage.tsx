@@ -7,32 +7,26 @@ const FEATURES = [
   {
     title: "Properties & residents",
     description: "Blocks, streets, zones, units, and occupancy — owners and tenants tracked with move-in/move-out history.",
-    accent: "text-primary bg-primary/10",
   },
   {
     title: "Billing & payments",
     description: "Charges, invoices, Paystack and manual bank-transfer payments, and receipts — one pipeline for every payment type.",
-    accent: "text-success bg-success/10",
   },
   {
     title: "Visitors & Gate Mode",
     description: "QR and PIN visitor passes, fast security check-in/out, and an override path with a required reason.",
-    accent: "text-cyan bg-cyan/10",
   },
   {
     title: "Maintenance & vendors",
     description: "Report, assign, resolve, and confirm — with a vendor directory and resident sign-off on every ticket.",
-    accent: "text-warning bg-warning/10",
   },
   {
-    title: "Utilities",
-    description: "Manual meter readings that bill consumption automatically through the same invoice and payment pipeline.",
-    accent: "text-primary bg-primary/10",
+    title: "Utilities & Community",
+    description: "Manual meter readings billed automatically, plus a private estate feed, classifieds, shortlets, and events.",
   },
   {
     title: "Announcements",
     description: "Targeted announcements with an in-app notification inbox for every resident who needs to see them.",
-    accent: "text-cyan bg-cyan/10",
   },
 ] as const;
 
@@ -58,7 +52,7 @@ export function LandingPage() {
         <header>
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
             <div className="flex items-center gap-2.5">
-              <Image src="/logo.png" alt="EstateOS" width={32} height={32} className="rounded-md" />
+              <Image src="/logo.svg" alt="EstateOS" width={32} height={32} className="rounded-md" />
               <span className="text-sm font-semibold">EstateOS</span>
             </div>
             <div className="flex items-center gap-4">
@@ -66,26 +60,23 @@ export function LandingPage() {
                 Sign in
               </Link>
               <Link href="/request-demo">
-                <Button type="button" className="!bg-white !text-navy hover:!bg-slate-100">
-                  Request a Demo
-                </Button>
+                <Button type="button">Request a Demo</Button>
               </Link>
             </div>
           </div>
         </header>
 
         <section className="mx-auto max-w-5xl px-4 py-20 text-center">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+          <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
             Run Your Entire Community From One Platform.
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-200">
-            Manage residents, payments, visitors, security, utilities, maintenance and communication with EstateOS.
+            Manage payments, residents, visitors, maintenance, utilities, shortlets, and community operations with
+            EstateOS.
           </p>
           <div className="mt-8 flex items-center justify-center gap-4">
             <Link href="/request-demo">
-              <Button type="button" className="!bg-white !text-navy hover:!bg-slate-100">
-                Request a Demo
-              </Button>
+              <Button type="button">Request a Demo</Button>
             </Link>
             <Link href="#features">
               <Button
@@ -93,7 +84,7 @@ export function LandingPage() {
                 variant="secondary"
                 className="!border-white/30 !bg-transparent !text-white hover:!bg-white/10"
               >
-                Explore EstateOS
+                See How It Works
               </Button>
             </Link>
           </div>
@@ -104,7 +95,7 @@ export function LandingPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feature) => (
             <Card key={feature.title}>
-              <span className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-semibold ${feature.accent}`}>
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-foreground/5 text-sm font-semibold text-foreground">
                 {feature.title.charAt(0)}
               </span>
               <p className="mt-3 font-medium">{feature.title}</p>

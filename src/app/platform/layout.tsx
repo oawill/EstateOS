@@ -12,7 +12,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
       <header className="bg-navy text-white">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="EstateOS" width={32} height={32} className="rounded-md" />
+            <Image src="/logo.svg" alt="EstateOS" width={32} height={32} className="rounded-md" />
             <div>
               <p className="text-sm font-semibold">EstateOS Platform Admin</p>
               <p className="text-xs text-slate-300">{user.name}</p>

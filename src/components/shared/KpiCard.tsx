@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 import { Card } from "./ui";
 
-export type KpiTone = "neutral" | "success" | "warning" | "danger" | "cyan";
+export type KpiTone = "neutral" | "success" | "warning" | "danger" | "gray";
 
 const ACCENT: Record<KpiTone, { border: string; iconBg: string; iconText: string; value: string }> = {
   neutral: { border: "border-l-navy", iconBg: "bg-navy/10", iconText: "text-navy", value: "text-foreground" },
-  success: { border: "border-l-success", iconBg: "bg-success/10", iconText: "text-success", value: "text-success" },
+  success: { border: "border-l-success", iconBg: "bg-success/10", iconText: "text-success", value: "text-foreground" },
   warning: { border: "border-l-warning", iconBg: "bg-warning/10", iconText: "text-warning", value: "text-foreground" },
   danger: { border: "border-l-danger", iconBg: "bg-danger/10", iconText: "text-danger", value: "text-danger" },
-  cyan: { border: "border-l-cyan", iconBg: "bg-cyan/10", iconText: "text-cyan", value: "text-foreground" },
+  gray: { border: "border-l-silver", iconBg: "bg-silver/20", iconText: "text-foreground-muted", value: "text-foreground" },
 };
 
 /**

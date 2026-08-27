@@ -28,11 +28,11 @@ async function AdminOverview({ estateId }: { estateId: string }) {
     { label: "Properties", value: propertyCount },
     { label: "Units", value: unitCount },
     { label: "Occupied units", value: occupiedUnits },
-    { label: "Registered residents", value: residentCount, tone: "cyan" },
+    { label: "Registered residents", value: residentCount, tone: "gray" },
     { label: "Collected this month", value: formatNaira(financeSummary.collectionsThisMonthKobo), tone: "success" },
     { label: "Outstanding", value: formatNaira(financeSummary.outstandingKobo), tone: "warning" },
     { label: "Overdue invoices", value: financeSummary.overdueCount, tone: "danger" },
-    { label: "Visitors currently inside", value: checkedInCount, tone: "cyan" },
+    { label: "Visitors currently inside", value: checkedInCount, tone: "gray" },
     { label: "Open maintenance tickets", value: maintenanceSummary.openCount, tone: "warning" },
     { label: "Overdue maintenance tickets", value: maintenanceSummary.overdueCount, tone: "danger" },
   ];

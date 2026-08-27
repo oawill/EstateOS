@@ -60,7 +60,7 @@ export default async function EstateLayout({
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="EstateOS" width={32} height={32} className="rounded-md" />
+            <Image src="/logo.svg" alt="EstateOS" width={32} height={32} className="rounded-md" />
             <div>
               <p className="text-sm font-semibold">{membership.estateName}</p>
               <p className="text-xs text-foreground-muted">
