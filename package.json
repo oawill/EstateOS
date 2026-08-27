@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "dotenv -e .env -- prisma generate && next build",
     "start": "next start",
     "postinstall": "dotenv -e .env -- prisma generate",
     "lint": "eslint",
