@@ -5,8 +5,8 @@ import { MobileNav } from "./MobileNav";
 
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
+  { href: "#security-gate", label: "Security" },
   { href: "#shortlet", label: "Shortlet" },
-  { href: "#security", label: "Security" },
 ];
 
 export function LandingHeader() {

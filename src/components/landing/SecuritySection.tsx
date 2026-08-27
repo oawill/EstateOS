@@ -7,7 +7,7 @@ const POINTS = [
 
 export function SecuritySection() {
   return (
-    <section id="security" className="gradient-premium text-white">
+    <section id="trust" className="gradient-premium text-white">
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 py-20 lg:grid-cols-2">
         <div>
           <h2 className="text-3xl font-semibold tracking-tight">

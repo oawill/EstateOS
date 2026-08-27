@@ -13,11 +13,12 @@ export function Hero() {
             FOR MODERN COMMUNITIES
           </p>
           <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Run Your Entire Community From <span className="text-primary">One Platform.</span>
+            Stop Running Your Community Through{" "}
+            <span className="text-primary">WhatsApp, Spreadsheets and Bank Transfers.</span>
           </h1>
           <p className="mt-5 max-w-xl text-lg text-slate-300">
-            EstateOS helps residential communities, property managers, and shortlet operators simplify operations,
-            improve transparency, and deliver a better experience for everyone they serve.
+            EstateOS brings residents, payments, security, visitors, utilities, maintenance and community operations
+            into one connected platform.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link href="/request-demo">
