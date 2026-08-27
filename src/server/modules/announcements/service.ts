@@ -48,7 +48,24 @@ async function currentResidentIdsForUnits(unitIds: string[]): Promise<string[]> 
   return [...new Set(occupancies.map((o) => o.residentId))];
 }
 
+// Guards against an admin accidentally re-submitting the same announcement
+// (double-click, browser back-and-resend) rather than a deliberate repeat
+// notice — a real duplicate the estate wants to re-send is still allowed
+// once this window passes.
+const DUPLICATE_ANNOUNCEMENT_WINDOW_MINUTES = 5;
+
 export async function createAnnouncement(estateId: string, actorUserId: string, input: CreateAnnouncementInput) {
+  const recentDuplicate = await scoped(estateId).announcement.findMany({
+    where: {
+      title: input.title,
+      body: input.body,
+      createdAt: { gte: new Date(Date.now() - DUPLICATE_ANNOUNCEMENT_WINDOW_MINUTES * 60_000) },
+    },
+  });
+  if (recentDuplicate.length > 0) {
+    throw new Error("An identical announcement was just sent — please wait a few minutes before resending.");
+  }
+
   const criteria = input.targetCriteria as Record<string, unknown>;
   const unitIds = await resolveTargetUnitIds(estateId, input.targetType, criteria);
   const residentIds = await currentResidentIdsForUnits(unitIds);
@@ -65,6 +82,7 @@ export async function createAnnouncement(estateId: string, actorUserId: string, 
   for (const residentId of residentIds) {
     await dispatchNotification(estateId, {
       residentId,
+      eventType: "announcement.published",
       title: announcement.title,
       body: announcement.body,
       announcementId: announcement.id,

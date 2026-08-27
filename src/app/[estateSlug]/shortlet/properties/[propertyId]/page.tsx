@@ -27,7 +27,9 @@ export default async function ShortletPropertyDetailPage({
       getProperty(membership.estateId, propertyId),
       getOrCreateShortletSettings(membership.estateId),
     ]);
-    return { property, currency: settings.defaultCurrency };
+    // A property may override the estate-wide default currency (e.g. a
+    // portfolio spanning multiple markets) — null means "use the default."
+    return { property, currency: property.currency ?? settings.defaultCurrency };
   });
 
   return (

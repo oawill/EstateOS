@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Badge, Button, Card, FormError, Input, Label } from "@/components/shared/ui";
-import { formatDate, formatNaira } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 import { INVOICE_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
 import { payWithPaystackAction, recordManualPaymentAction, type PayWithPaystackFormState, type RecordManualPaymentFormState } from "./actions";
 
@@ -19,7 +19,17 @@ export interface InvoiceSummary {
 const payInitial: PayWithPaystackFormState = {};
 const manualInitial: RecordManualPaymentFormState = {};
 
-export function InvoiceCard({ estateSlug, invoice }: { estateSlug: string; invoice: InvoiceSummary }) {
+export function InvoiceCard({
+  estateSlug,
+  invoice,
+  currency = "NGN",
+  locale = "en-NG",
+}: {
+  estateSlug: string;
+  invoice: InvoiceSummary;
+  currency?: string;
+  locale?: string;
+}) {
   const [showManualForm, setShowManualForm] = useState(false);
   const payAction = payWithPaystackAction.bind(null, estateSlug);
   const [payState, payFormAction, payPending] = useActionState(payAction, payInitial);
@@ -33,7 +43,7 @@ export function InvoiceCard({ estateSlug, invoice }: { estateSlug: string; invoi
       <div className="flex items-start justify-between">
         <div>
           <p className="font-medium">{invoice.title}</p>
-          <p className="mt-1 text-2xl font-semibold text-foreground">{formatNaira(invoice.amountKobo)}</p>
+          <p className="mt-1 text-2xl font-semibold text-foreground">{formatMoney(invoice.amountKobo, currency, locale)}</p>
           <p className="mt-0.5 text-sm text-foreground-muted">
             {invoice.invoiceNumber} · Due {formatDate(invoice.dueDate)}
           </p>
@@ -62,7 +72,7 @@ export function InvoiceCard({ estateSlug, invoice }: { estateSlug: string; invoi
               <FormError message={manualState.error} />
               <input type="hidden" name="invoiceId" value={invoice.id} />
               <div>
-                <Label htmlFor={`amount-${invoice.id}`}>Amount paid (₦)</Label>
+                <Label htmlFor={`amount-${invoice.id}`}>Amount paid ({currency})</Label>
                 <Input
                   id={`amount-${invoice.id}`}
                   name="amountNaira"

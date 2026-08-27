@@ -58,7 +58,7 @@ export default async function ShortletReservationDetailPage({
       getReservation(membership.estateId, reservationId),
       getOrCreateShortletSettings(membership.estateId),
     ]);
-    return { reservation, currency: settings.defaultCurrency };
+    return { reservation, currency: reservation.unit.property.currency ?? settings.defaultCurrency };
   });
 
   const fmt = (minor: number) => formatCurrency(minor, currency);

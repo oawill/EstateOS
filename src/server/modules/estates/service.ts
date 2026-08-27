@@ -66,6 +66,43 @@ export async function listMembershipsForUser(userId: string) {
   });
 }
 
+export async function getEstateLocale(estateId: string) {
+  return prisma.estate.findUniqueOrThrow({
+    where: { id: estateId },
+    select: { country: true, currency: true, timezone: true, locale: true, phoneCountryCode: true },
+  });
+}
+
+export interface UpdateEstateLocaleInput {
+  country: string;
+  currency: string;
+  timezone: string;
+  locale: string;
+  phoneCountryCode: string;
+}
+
+/** Only an authorized admin (call site enforces "estate:*") can change these. */
+export async function updateEstateLocale(estateId: string, actorUserId: string, input: UpdateEstateLocaleInput) {
+  const before = await getEstateLocale(estateId);
+  const after = await prisma.estate.update({
+    where: { id: estateId },
+    data: input,
+    select: { country: true, currency: true, timezone: true, locale: true, phoneCountryCode: true },
+  });
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "estate.locale_updated",
+    entityType: "Estate",
+    entityId: estateId,
+    before,
+    after,
+  });
+
+  return after;
+}
+
 export async function listBlocks(estateId: string) {
   return scoped(estateId).block.findMany({ orderBy: { name: "asc" } });
 }

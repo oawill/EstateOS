@@ -4,6 +4,7 @@ import { guardPage } from "@/server/auth/pageGuard";
 import { NotFoundError } from "@/lib/errors";
 import { getResidentByUserId } from "@/server/modules/residents/service";
 import { listInvoicesForResident } from "@/server/modules/billing/service";
+import { getEstateLocale } from "@/server/modules/estates/service";
 import { InvoiceCard } from "./InvoiceCard";
 
 export default async function MyBillsPage({ params }: { params: Promise<{ estateSlug: string }> }) {
@@ -17,7 +18,10 @@ export default async function MyBillsPage({ params }: { params: Promise<{ estate
     return resident;
   });
 
-  const invoices = await listInvoicesForResident(membership.estateId, resident.id);
+  const [invoices, estateLocale] = await Promise.all([
+    listInvoicesForResident(membership.estateId, resident.id),
+    getEstateLocale(membership.estateId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -33,6 +37,8 @@ export default async function MyBillsPage({ params }: { params: Promise<{ estate
             <InvoiceCard
               key={invoice.id}
               estateSlug={estateSlug}
+              currency={estateLocale.currency}
+              locale={estateLocale.locale}
               invoice={{
                 id: invoice.id,
                 invoiceNumber: invoice.invoiceNumber,

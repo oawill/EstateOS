@@ -5,14 +5,20 @@ import { KpiCard, type KpiTone } from "@/components/shared/KpiCard";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstateMember } from "@/server/auth/session";
 import { prisma } from "@/server/db/client";
-import { formatNaira } from "@/lib/utils";
+import { formatMoney } from "@/lib/utils";
 import { getFinanceSummary, getResidentOutstandingBalanceKobo } from "@/server/modules/billing/service";
+import { getEstateLocale } from "@/server/modules/estates/service";
 import { getResidentByUserId } from "@/server/modules/residents/service";
 import { countCurrentlyCheckedIn } from "@/server/modules/visitors/service";
 import { getMaintenanceSummary } from "@/server/modules/maintenance/service";
 import { countUnreadNotifications } from "@/server/modules/announcements/service";
 
-async function AdminOverview({ estateId }: { estateId: string }) {
+interface EstateLocale {
+  currency: string;
+  locale: string;
+}
+
+async function AdminOverview({ estateId, estateLocale }: { estateId: string; estateLocale: EstateLocale }) {
   const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary, checkedInCount, maintenanceSummary] =
     await Promise.all([
       prisma.property.count({ where: { estateId } }),
@@ -23,14 +29,15 @@ async function AdminOverview({ estateId }: { estateId: string }) {
       countCurrentlyCheckedIn(estateId),
       getMaintenanceSummary(estateId),
     ]);
+  const money = (amountKobo: number) => formatMoney(amountKobo, estateLocale.currency, estateLocale.locale);
 
   const stats: { label: string; value: string | number; tone?: KpiTone }[] = [
     { label: "Properties", value: propertyCount },
     { label: "Units", value: unitCount },
     { label: "Occupied units", value: occupiedUnits },
     { label: "Registered residents", value: residentCount, tone: "gray" },
-    { label: "Collected this month", value: formatNaira(financeSummary.collectionsThisMonthKobo), tone: "success" },
-    { label: "Outstanding", value: formatNaira(financeSummary.outstandingKobo), tone: "warning" },
+    { label: "Collected this month", value: money(financeSummary.collectionsThisMonthKobo), tone: "success" },
+    { label: "Outstanding", value: money(financeSummary.outstandingKobo), tone: "warning" },
     { label: "Overdue invoices", value: financeSummary.overdueCount, tone: "danger" },
     { label: "Visitors currently inside", value: checkedInCount, tone: "gray" },
     { label: "Open maintenance tickets", value: maintenanceSummary.openCount, tone: "warning" },
@@ -46,13 +53,14 @@ async function AdminOverview({ estateId }: { estateId: string }) {
   );
 }
 
-async function FinanceOverview({ estateId }: { estateId: string }) {
+async function FinanceOverview({ estateId, estateLocale }: { estateId: string; estateLocale: EstateLocale }) {
   const summary = await getFinanceSummary(estateId);
+  const money = (amountKobo: number) => formatMoney(amountKobo, estateLocale.currency, estateLocale.locale);
   const stats: { label: string; value: string | number; tone: KpiTone }[] = [
-    { label: "Collected today", value: formatNaira(summary.collectionsTodayKobo), tone: "success" },
-    { label: "Collected this month", value: formatNaira(summary.collectionsThisMonthKobo), tone: "success" },
-    { label: "Collected this year", value: formatNaira(summary.collectionsThisYearKobo), tone: "success" },
-    { label: "Outstanding", value: formatNaira(summary.outstandingKobo), tone: "warning" },
+    { label: "Collected today", value: money(summary.collectionsTodayKobo), tone: "success" },
+    { label: "Collected this month", value: money(summary.collectionsThisMonthKobo), tone: "success" },
+    { label: "Collected this year", value: money(summary.collectionsThisYearKobo), tone: "success" },
+    { label: "Outstanding", value: money(summary.outstandingKobo), tone: "warning" },
     { label: "Overdue invoices", value: summary.overdueCount, tone: "danger" },
   ];
 
@@ -81,7 +89,17 @@ async function FacilityOverview({ estateId, estateSlug }: { estateId: string; es
   );
 }
 
-async function ResidentOverview({ estateId, estateSlug, userId }: { estateId: string; estateSlug: string; userId: string }) {
+async function ResidentOverview({
+  estateId,
+  estateSlug,
+  userId,
+  estateLocale,
+}: {
+  estateId: string;
+  estateSlug: string;
+  userId: string;
+  estateLocale: EstateLocale;
+}) {
   const resident = await getResidentByUserId(estateId, userId);
   if (!resident) {
     return (
@@ -101,7 +119,7 @@ async function ResidentOverview({ estateId, estateSlug, userId }: { estateId: st
       <Card>
         <p className="text-sm text-foreground-muted">Outstanding balance</p>
         <p className={`mt-1 text-3xl font-semibold ${outstandingKobo > 0 ? "text-warning" : "text-success"}`}>
-          {formatNaira(outstandingKobo)}
+          {formatMoney(outstandingKobo, estateLocale.currency, estateLocale.locale)}
         </p>
         <Link href={`/${estateSlug}/my/bills`}>
           <Button className="mt-4 w-full">{outstandingKobo > 0 ? "Pay now" : "View bills"}</Button>
@@ -120,6 +138,7 @@ async function ResidentOverview({ estateId, estateSlug, userId }: { estateId: st
 export default async function EstateDashboardPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
+  const estateLocale = await getEstateLocale(membership.estateId);
 
   return (
     <div className="space-y-6">
@@ -128,9 +147,13 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
         <p className="text-sm text-foreground-muted">{membership.estateName}</p>
       </div>
 
-      {membership.role === Role.ESTATE_ADMIN && <AdminOverview estateId={membership.estateId} />}
+      {membership.role === Role.ESTATE_ADMIN && (
+        <AdminOverview estateId={membership.estateId} estateLocale={estateLocale} />
+      )}
 
-      {membership.role === Role.FINANCE && <FinanceOverview estateId={membership.estateId} />}
+      {membership.role === Role.FINANCE && (
+        <FinanceOverview estateId={membership.estateId} estateLocale={estateLocale} />
+      )}
 
       {membership.role === Role.FACILITY_MANAGER && (
         <FacilityOverview estateId={membership.estateId} estateSlug={estateSlug} />
@@ -150,7 +173,12 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
       )}
 
       {membership.role === Role.RESIDENT && (
-        <ResidentOverview estateId={membership.estateId} estateSlug={estateSlug} userId={user.id} />
+        <ResidentOverview
+          estateId={membership.estateId}
+          estateSlug={estateSlug}
+          userId={user.id}
+          estateLocale={estateLocale}
+        />
       )}
 
       {membership.role === Role.VENDOR && (

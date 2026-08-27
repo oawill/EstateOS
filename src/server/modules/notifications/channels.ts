@@ -5,6 +5,8 @@ export interface NotificationPayload {
 
 export interface ChannelResult {
   status: "SENT" | "FAILED";
+  provider?: string;
+  externalMessageId?: string;
   error?: string;
 }
 
@@ -30,5 +32,28 @@ export const InAppChannel: NotificationChannel = {
   type: "IN_APP",
   async send(): Promise<ChannelResult> {
     return { status: "SENT" };
+  },
+};
+
+/**
+ * WhatsApp-ready, not WhatsApp-live. This channel exists so the rest of
+ * the codebase (dispatch.ts, every call site that sends a notification)
+ * is already written against the real interface a future provider will
+ * implement — but it deliberately never claims a message was delivered.
+ * There's no Meta WhatsApp Cloud API app, no approved message templates,
+ * no business verification and no webhook receiver configured yet, so
+ * this always reports FAILED with an honest reason rather than faking a
+ * SENT status. Once WHATSAPP_PROVIDER_API_KEY (or equivalent) is set,
+ * replace the body of `send` with the real API call and add this channel
+ * to dispatch.ts's ENABLED_CHANNELS — no other file needs to change.
+ */
+export const WhatsAppChannel: NotificationChannel = {
+  type: "WHATSAPP",
+  async send(): Promise<ChannelResult> {
+    if (!process.env.WHATSAPP_PROVIDER_API_KEY) {
+      return { status: "FAILED", provider: "none", error: "WhatsApp provider not configured" };
+    }
+    // Real provider call goes here once configured; unreachable today.
+    return { status: "FAILED", provider: "unconfigured", error: "WhatsApp provider not implemented" };
   },
 };

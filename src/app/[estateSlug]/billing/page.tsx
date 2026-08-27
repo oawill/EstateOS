@@ -3,21 +3,24 @@ import { Badge, Button, Card } from "@/components/shared/ui";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
-import { formatDate, formatNaira } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 import { INVOICE_STATUS_TONE } from "@/lib/statusTones";
 import { getFinanceSummary, listCharges, listInvoices, listPendingManualPayments } from "@/server/modules/billing/service";
+import { getEstateLocale } from "@/server/modules/estates/service";
 import { approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
 
 export default async function BillingPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
   const { membership } = await guardPage(() => requireEstatePermission(estateSlug, "invoices:*"));
 
-  const [summary, charges, invoices, pendingManualPayments] = await Promise.all([
+  const [summary, charges, invoices, pendingManualPayments, estateLocale] = await Promise.all([
     getFinanceSummary(membership.estateId),
     listCharges(membership.estateId),
     listInvoices(membership.estateId),
     listPendingManualPayments(membership.estateId),
+    getEstateLocale(membership.estateId),
   ]);
+  const money = (amountKobo: number) => formatMoney(amountKobo, estateLocale.currency, estateLocale.locale);
 
   return (
     <div className="space-y-8">
@@ -29,10 +32,10 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <KpiCard tone="success" label="Collected today" value={formatNaira(summary.collectionsTodayKobo)} />
-        <KpiCard tone="success" label="Collected this month" value={formatNaira(summary.collectionsThisMonthKobo)} />
-        <KpiCard tone="success" label="Collected this year" value={formatNaira(summary.collectionsThisYearKobo)} />
-        <KpiCard tone="warning" label="Outstanding" value={formatNaira(summary.outstandingKobo)} />
+        <KpiCard tone="success" label="Collected today" value={money(summary.collectionsTodayKobo)} />
+        <KpiCard tone="success" label="Collected this month" value={money(summary.collectionsThisMonthKobo)} />
+        <KpiCard tone="success" label="Collected this year" value={money(summary.collectionsThisYearKobo)} />
+        <KpiCard tone="warning" label="Outstanding" value={money(summary.outstandingKobo)} />
         <KpiCard tone="danger" label="Overdue invoices" value={summary.overdueCount} />
       </div>
 
@@ -45,7 +48,7 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
                 <div>
                   <p className="font-medium">
                     {payment.invoice.resident?.firstName} {payment.invoice.resident?.lastName} ·{" "}
-                    {formatNaira(payment.amountKobo)}
+                    {money(payment.amountKobo)}
                   </p>
                   <p className="mt-0.5 text-sm text-slate-500">
                     Invoice {payment.invoice.invoiceNumber} · {payment.invoice.unit.property.addressLabel}
@@ -93,7 +96,7 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
                 <div>
                   <p className="font-medium">{charge.title}</p>
                   <p className="mt-0.5 text-sm text-slate-500">
-                    {formatNaira(charge.amountKobo)} · Due {formatDate(charge.dueDate)}
+                    {money(charge.amountKobo)} · Due {formatDate(charge.dueDate)}
                   </p>
                 </div>
                 <Badge>{charge._count.invoices} invoices</Badge>
@@ -118,7 +121,7 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
                     {invoice.invoiceNumber} · {invoice.resident?.firstName} {invoice.resident?.lastName}
                   </p>
                   <p className="mt-0.5 text-sm text-slate-500">
-                    {invoice.unit.property.addressLabel} · {formatNaira(invoice.amountKobo)} · Due{" "}
+                    {invoice.unit.property.addressLabel} · {money(invoice.amountKobo)} · Due{" "}
                     {formatDate(invoice.dueDate)}
                   </p>
                 </div>

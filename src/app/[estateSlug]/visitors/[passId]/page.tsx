@@ -1,12 +1,13 @@
 import QRCode from "qrcode";
 import Link from "next/link";
 import { Badge, Card } from "@/components/shared/ui";
-import { formatDate } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { NotFoundError } from "@/lib/errors";
 import { VISITOR_PASS_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
 import { getResidentByUserId } from "@/server/modules/residents/service";
+import { getEstateLocale } from "@/server/modules/estates/service";
 import { getPassForResident, passStatus } from "@/server/modules/visitors/service";
 import { signVisitorToken } from "@/server/modules/visitors/token";
 
@@ -17,22 +18,26 @@ export default async function VisitorPassPage({
 }) {
   const { estateSlug, passId } = await params;
 
-  const { membership, pass } = await guardPage(async () => {
+  const { membership, pass, estateLocale } = await guardPage(async () => {
     const { user, membership } = await requireEstatePermission(estateSlug, "own-visitors:*");
     const resident = await getResidentByUserId(membership.estateId, user.id);
     if (!resident) throw new NotFoundError("Resident profile");
-    const pass = await getPassForResident(membership.estateId, resident.id, passId);
-    return { membership, pass };
+    const [pass, estateLocale] = await Promise.all([
+      getPassForResident(membership.estateId, resident.id, passId),
+      getEstateLocale(membership.estateId),
+    ]);
+    return { membership, pass, estateLocale };
   });
   const status = passStatus(pass);
+  const fmt = (date: Date) => formatDateTime(date, estateLocale.timezone, estateLocale.locale);
 
   const token = signVisitorToken(membership.estateId, pass.id);
   const qrDataUrl = await QRCode.toDataURL(token, { margin: 1, width: 240 });
 
   const whatsappMessage = encodeURIComponent(
-    `Hi ${pass.visitorName}, you're invited to ${membership.estateName}. Your visitor PIN is ${pass.pin}, valid from ${formatDate(
+    `Hi ${pass.visitorName}, you're invited to ${membership.estateName}. Your visitor PIN is ${pass.pin}, valid from ${fmt(
       pass.startTime,
-    )} to ${formatDate(pass.expiresAt)}. Show this PIN (or the QR code) at the gate.`,
+    )} to ${fmt(pass.expiresAt)}. Show this PIN (or the QR code) at the gate.`,
   );
 
   return (
@@ -47,7 +52,7 @@ export default async function VisitorPassPage({
           <Badge tone={STATUS_TONE[status]}>{status.replaceAll("_", " ")}</Badge>
         </div>
         <p className="mt-1 text-sm text-slate-500">
-          {formatDate(pass.startTime)} – {formatDate(pass.expiresAt)}
+          {fmt(pass.startTime)} – {fmt(pass.expiresAt)}
         </p>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { Badge, Button, Card } from "@/components/shared/ui";
-import { formatDate } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { NotFoundError } from "@/lib/errors";
 import { VISITOR_PASS_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
 import { getResidentByUserId } from "@/server/modules/residents/service";
+import { getEstateLocale } from "@/server/modules/estates/service";
 import { listPassesForResident, passStatus } from "@/server/modules/visitors/service";
 
 export default async function VisitorsPage({ params }: { params: Promise<{ estateSlug: string }> }) {
@@ -15,7 +16,10 @@ export default async function VisitorsPage({ params }: { params: Promise<{ estat
   const resident = await getResidentByUserId(membership.estateId, user.id);
   if (!resident) throw new NotFoundError("Resident profile");
 
-  const passes = await listPassesForResident(membership.estateId, resident.id);
+  const [passes, estateLocale] = await Promise.all([
+    listPassesForResident(membership.estateId, resident.id),
+    getEstateLocale(membership.estateId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -41,7 +45,8 @@ export default async function VisitorsPage({ params }: { params: Promise<{ estat
                     <div>
                       <p className="font-medium">{pass.visitorName}</p>
                       <p className="mt-0.5 text-sm text-slate-500">
-                        {formatDate(pass.startTime)} – {formatDate(pass.expiresAt)}
+                        {formatDateTime(pass.startTime, estateLocale.timezone, estateLocale.locale)} –{" "}
+                        {formatDateTime(pass.expiresAt, estateLocale.timezone, estateLocale.locale)}
                         {pass.vehicleNumber ? ` · ${pass.vehicleNumber}` : ""}
                       </p>
                     </div>

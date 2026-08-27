@@ -4,7 +4,13 @@ import { scoped } from "@/server/db/scoped";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import { formatSequenceCode, nextSequenceNumber } from "@/server/modules/sequence";
+import { dispatchNotification } from "@/server/modules/notifications/dispatch";
 import type { CreateTicketInput, ResidentFeedbackInput, TransitionTicketInput } from "./schema";
+
+const NOTIFIABLE_STATUSES = new Set<MaintenanceStatus>([
+  MaintenanceStatus.ASSIGNED,
+  MaintenanceStatus.RESOLVED,
+]);
 
 // ---------------------------------------------------------------------------
 // SLA / overdue policy — a documented default, not a real product decision.
@@ -197,6 +203,16 @@ export async function transitionTicket(
     before: { status: ticket.status },
     after: { status: updated.status, assignedToUserId: updated.assignedToUserId, vendorId: updated.vendorId },
   });
+
+  if (ticket.residentId && NOTIFIABLE_STATUSES.has(input.status)) {
+    const verb = input.status === MaintenanceStatus.RESOLVED ? "has been completed" : "has been assigned";
+    await dispatchNotification(estateId, {
+      residentId: ticket.residentId,
+      eventType: "maintenance.status_changed",
+      title: `Maintenance request ${ticket.ticketNumber}`,
+      body: `Maintenance request ${ticket.ticketNumber} ${verb}.`,
+    });
+  }
 
   return updated;
 }

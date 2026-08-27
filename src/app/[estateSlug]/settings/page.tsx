@@ -1,20 +1,22 @@
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
-import { listBlocks, listStreets, listZones } from "@/server/modules/estates/service";
+import { getEstateLocale, listBlocks, listStreets, listZones } from "@/server/modules/estates/service";
 import { getOrCreateCommunitySettings, listClassifiedCategories } from "@/server/modules/community/settings";
 import { GeographySection } from "./GeographySection";
 import { CommunitySettingsSection } from "./CommunitySettingsSection";
+import { LocaleSection } from "./LocaleSection";
 
 export default async function SettingsPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
   const { membership } = await guardPage(() => requireEstatePermission(estateSlug, "estate:*"));
 
-  const [blocks, streets, zones, communitySettings, categories] = await Promise.all([
+  const [blocks, streets, zones, communitySettings, categories, locale] = await Promise.all([
     listBlocks(membership.estateId),
     listStreets(membership.estateId),
     listZones(membership.estateId),
     getOrCreateCommunitySettings(membership.estateId),
     listClassifiedCategories(membership.estateId),
+    getEstateLocale(membership.estateId),
   ]);
 
   return (
@@ -28,6 +30,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ estat
         <GeographySection estateSlug={estateSlug} kind="street" title="Streets" items={streets} />
         <GeographySection estateSlug={estateSlug} kind="zone" title="Zones" items={zones} />
       </div>
+      <LocaleSection estateSlug={estateSlug} locale={locale} />
       <CommunitySettingsSection
         estateSlug={estateSlug}
         settings={communitySettings}

@@ -3,9 +3,11 @@ import { ChargeTargetType, type PropertyType, Prisma } from "@prisma/client";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import { formatSequenceCode, nextSequenceNumber } from "@/server/modules/sequence";
+import { formatNaira } from "@/lib/utils";
 import { prisma } from "@/server/db/client";
 import { scoped } from "@/server/db/scoped";
-import { initializePaystackTransaction } from "./paystack";
+import { dispatchNotification } from "@/server/modules/notifications/dispatch";
+import { getPaymentProviderForCountry } from "./providers/paystackProvider";
 import type { CreateChargeInput, RecordManualPaymentInput } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -61,7 +63,7 @@ export async function createChargeAndGenerateInvoices(
   const criteria = input.targetCriteria as Record<string, unknown>;
   const unitIds = await resolveTargetUnitIds(estateId, input.targetType, criteria);
 
-  const { charge, invoiceCount } = await prisma.$transaction(
+  const { charge, invoiceCount, billedResidentIds } = await prisma.$transaction(
     async (tx) => {
       const charge = await tx.charge.create({
         data: {
@@ -77,6 +79,7 @@ export async function createChargeAndGenerateInvoices(
       });
 
       let invoiceCount = 0;
+      const billedResidentIds: string[] = [];
       for (const unitId of unitIds) {
         const residentId = await currentBillableResidentId(tx, unitId);
         if (!residentId) continue; // vacant unit — nobody to bill yet
@@ -95,9 +98,10 @@ export async function createChargeAndGenerateInvoices(
           },
         });
         invoiceCount += 1;
+        billedResidentIds.push(residentId);
       }
 
-      return { charge, invoiceCount };
+      return { charge, invoiceCount, billedResidentIds };
     },
     { timeout: 30_000 },
   );
@@ -110,6 +114,18 @@ export async function createChargeAndGenerateInvoices(
     entityId: charge.id,
     after: { ...charge, targetedUnits: unitIds.length, invoicesGenerated: invoiceCount },
   });
+
+  // Best-effort — a notification failure must never roll back a charge
+  // that already billed real residents, so this runs after the
+  // transaction, not inside it.
+  for (const residentId of billedResidentIds) {
+    await dispatchNotification(estateId, {
+      residentId,
+      eventType: "bill.created",
+      title: charge.title,
+      body: `Your ${charge.title} of ${formatNaira(charge.amountKobo)} is due ${charge.dueDate.toDateString()}.`,
+    });
+  }
 
   return charge;
 }
@@ -176,10 +192,10 @@ export async function getResidentOutstandingBalanceKobo(estateId: string, reside
  * payment paths can never drift apart.
  */
 export async function applySuccessfulPayment(paymentId: string, actorUserId: string | null) {
-  await prisma.$transaction(async (tx) => {
+  const notify = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!payment) throw new NotFoundError("Payment");
-    if (payment.status === "SUCCESSFUL") return; // idempotent — already applied
+    if (payment.status === "SUCCESSFUL") return null; // idempotent — already applied, never double-notify
 
     await tx.payment.update({
       where: { id: payment.id },
@@ -196,7 +212,7 @@ export async function applySuccessfulPayment(paymentId: string, actorUserId: str
     await tx.invoice.update({ where: { id: invoice.id }, data: { status: newStatus } });
 
     const seq = await nextSequenceNumber(tx, payment.estateId, "receipt");
-    await tx.receipt.create({
+    const receipt = await tx.receipt.create({
       data: {
         estateId: payment.estateId,
         paymentId: payment.id,
@@ -212,7 +228,26 @@ export async function applySuccessfulPayment(paymentId: string, actorUserId: str
       entityId: payment.id,
       after: { paymentId: payment.id, invoiceId: invoice.id, amountKobo: payment.amountKobo, newInvoiceStatus: newStatus },
     });
+
+    if (!invoice.residentId) return null;
+    return {
+      estateId: payment.estateId,
+      residentId: invoice.residentId,
+      amountKobo: payment.amountKobo,
+      receiptNumber: receipt.receiptNumber,
+    };
   });
+
+  // Notification only fires once the payment is actually verified and
+  // committed above — never on an initiated-but-unconfirmed payment.
+  if (notify) {
+    await dispatchNotification(notify.estateId, {
+      residentId: notify.residentId,
+      eventType: "payment.confirmed",
+      title: "Payment received",
+      body: `Your payment of ${formatNaira(notify.amountKobo)} has been received. Receipt: ${notify.receiptNumber}.`,
+    });
+  }
 }
 
 export async function recordManualPayment(
@@ -310,9 +345,11 @@ export async function initiatePaystackPayment(
     paystackReference: reference,
   });
 
-  const { authorizationUrl } = await initializePaystackTransaction({
+  const estate = await prisma.estate.findUniqueOrThrow({ where: { id: estateId }, select: { country: true } });
+  const provider = getPaymentProviderForCountry(estate.country);
+  const { authorizationUrl } = await provider.initialize({
     email: resident.email,
-    amountKobo: invoice.amountKobo,
+    amountMinor: invoice.amountKobo,
     reference,
     callbackUrl,
     metadata: { estateId, invoiceId: invoice.id, residentId: resident.id },

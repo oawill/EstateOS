@@ -149,6 +149,8 @@ enum NotificationChannelType {
 enum NotificationStatus {
   PENDING
   SENT
+  DELIVERED
+  READ
   FAILED
 }
 
@@ -535,6 +537,19 @@ model Estate {
   address            String?
   city               String?
   state              String?
+  postalCode         String?
+  // Global-ready locale configuration. Nigeria remains the sensible
+  // default for every existing and newly-created estate today (the only
+  // market EstateOS actually operates in), but these are real per-estate
+  // fields, not hardcoded assumptions — an estate admin can change them in
+  // Settings, and every new organization is free to pick a different
+  // country from creation. See src/lib/locale.ts for how these drive
+  // currency/timezone formatting.
+  country            String             @default("NG")
+  currency           String             @default("NGN")
+  timezone           String             @default("Africa/Lagos")
+  locale             String             @default("en-NG")
+  phoneCountryCode   String             @default("+234")
   contactEmail       String?
   contactPhone       String?
   subscriptionStatus SubscriptionStatus @default(TRIAL)
@@ -721,24 +736,25 @@ model Resident {
   createdAt                      DateTime                        @default(now())
   updatedAt                      DateTime                        @updatedAt
 
-  estate              Estate                  @relation(fields: [estateId], references: [id], onDelete: Cascade)
-  user                User?                   @relation(fields: [userId], references: [id])
-  occupancies         Occupancy[]
-  vehicles            Vehicle[]
-  invoices            Invoice[]
-  visitorPasses       VisitorPass[]
-  maintenanceTickets  MaintenanceTicket[]
-  notifications       Notification[]
-  communityPosts      CommunityPost[]
-  communityComments   CommunityComment[]
-  communityReactions  CommunityReaction[]
-  communitySavedPosts CommunitySavedPost[]
-  classifiedListings  ClassifiedListing[]
-  savedListings       CommunitySavedListing[]
-  communityEvents     CommunityEvent[]
-  eventRsvps          EventRsvp[]
-  communityReports    CommunityReport[]
-  listingInquiries    ListingInquiry[]
+  estate                 Estate                  @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  user                   User?                   @relation(fields: [userId], references: [id])
+  occupancies            Occupancy[]
+  vehicles               Vehicle[]
+  invoices               Invoice[]
+  visitorPasses          VisitorPass[]
+  maintenanceTickets     MaintenanceTicket[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  communityPosts         CommunityPost[]
+  communityComments      CommunityComment[]
+  communityReactions     CommunityReaction[]
+  communitySavedPosts    CommunitySavedPost[]
+  classifiedListings     ClassifiedListing[]
+  savedListings          CommunitySavedListing[]
+  communityEvents        CommunityEvent[]
+  eventRsvps             EventRsvp[]
+  communityReports       CommunityReport[]
+  listingInquiries       ListingInquiry[]
 
   @@index([estateId])
   @@index([userId])
@@ -1133,16 +1149,28 @@ model Announcement {
 // table/dispatcher without a schema change; this isn't an
 // announcements-only inbox.
 model Notification {
-  id             String                  @id @default(cuid())
-  estateId       String
-  residentId     String
-  announcementId String?
-  title          String
-  body           String
-  channel        NotificationChannelType @default(IN_APP)
-  status         NotificationStatus      @default(PENDING)
-  readAt         DateTime?
-  createdAt      DateTime                @default(now())
+  id                String                  @id @default(cuid())
+  estateId          String
+  residentId        String
+  announcementId    String?
+  // What triggered this notification (e.g. "bill.created",
+  // "payment.confirmed", "maintenance.status_changed") — lets a future
+  // provider pick the right message template and lets notification
+  // history be filtered/reported on by event, not just free-text title.
+  eventType         String?
+  title             String
+  body              String
+  channel           NotificationChannelType @default(IN_APP)
+  status            NotificationStatus      @default(PENDING)
+  // Delivery-provider tracking — unused while only InAppChannel is enabled,
+  // populated once a real EMAIL/WHATSAPP/SMS provider is wired in.
+  provider          String?
+  externalMessageId String?
+  failureReason     String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  createdAt         DateTime                @default(now())
 
   estate       Estate        @relation(fields: [estateId], references: [id], onDelete: Cascade)
   resident     Resident      @relation(fields: [residentId], references: [id], onDelete: Cascade)
@@ -1151,6 +1179,29 @@ model Notification {
   @@index([estateId])
   @@index([residentId])
   @@index([announcementId])
+}
+
+// One row per Resident. Consent is tracked explicitly and separately from
+// the "do we have a phone number" question — having a number is never
+// treated as permission to message it. Transactional notifications (bills,
+// payment confirmations, maintenance updates) are considered a normal part
+// of operating the account and aren't gated by marketingOptIn; only
+// non-essential/marketing-style messages should ever check that flag.
+model NotificationPreference {
+  id                    String    @id @default(cuid())
+  residentId            String    @unique
+  emailOptIn            Boolean   @default(true)
+  whatsappOptIn         Boolean   @default(false)
+  whatsappNumber        String?
+  whatsappCountryCode   String?
+  whatsappConsentAt     DateTime?
+  whatsappConsentSource String?
+  whatsappOptOutAt      DateTime?
+  marketingOptIn        Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------
@@ -1485,6 +1536,13 @@ model ShortletProperty {
   address              String
   country              String
   city                 String
+  // Nullable overrides of ShortletSettings.defaultCurrency/defaultTimezone
+  // — a property manager's portfolio can span multiple markets (a Lagos
+  // property and a future Accra or Nairobi property), so each property may
+  // opt out of the estate-wide default rather than being forced onto it.
+  // Null means "use the estate default."
+  currency             String?
+  timezone             String?
   bedrooms             Int
   bathrooms            Int
   maxGuests            Int
