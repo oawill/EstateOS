@@ -24,14 +24,14 @@ export function Hero() {
             <Link href="/request-demo">
               <Button type="button">Request a Demo</Button>
             </Link>
-            <a href="#features">
+            <a href="#how-it-works">
               <Button type="button" variant="secondary" className="!border-white/30 !bg-transparent !text-white hover:!bg-white/10">
                 See How It Works
               </Button>
             </a>
           </div>
 
-          <dl className="mt-10 grid grid-cols-3 gap-4 border-t border-white/10 pt-6 text-sm">
+          <dl className="mt-10 grid grid-cols-2 gap-4 border-t border-white/10 pt-6 text-sm">
             <div>
               <dt className="font-semibold text-white">Secure</dt>
               <dd className="mt-0.5 text-white/60">Role-based access control</dd>
@@ -39,10 +39,6 @@ export function Hero() {
             <div>
               <dt className="font-semibold text-white">Reliable</dt>
               <dd className="mt-0.5 text-white/60">Built for always-on operations</dd>
-            </div>
-            <div>
-              <dt className="font-semibold text-white">Trusted</dt>
-              <dd className="mt-0.5 text-white/60">By communities and operators</dd>
             </div>
           </dl>
         </div>

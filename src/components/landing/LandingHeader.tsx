@@ -5,8 +5,9 @@ import { MobileNav } from "./MobileNav";
 
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
-  { href: "#security-gate", label: "Security" },
+  { href: "#how-it-works", label: "How It Works" },
   { href: "#shortlet", label: "Shortlet" },
+  { href: "/security", label: "Security" },
 ];
 
 export function LandingHeader() {
@@ -20,13 +21,13 @@ export function LandingHeader() {
 
         <nav className="hidden items-center gap-1 sm:flex" aria-label="Primary">
           {NAV_LINKS.map((link) => (
-            <a
+            <Link
               key={link.href}
               href={link.href}
               className="rounded-lg px-3 py-2 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
 

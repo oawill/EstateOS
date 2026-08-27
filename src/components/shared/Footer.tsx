@@ -7,7 +7,9 @@ import Link from "next/link";
 // link to pages that don't exist, the footer stays intentionally small.
 const LINKS = [
   { href: "#features", label: "Features" },
+  { href: "#how-it-works", label: "How It Works" },
   { href: "#shortlet", label: "Shortlet" },
+  { href: "/security", label: "Security" },
   { href: "/login", label: "Log In" },
   { href: "/request-demo", label: "Request a Demo" },
 ];

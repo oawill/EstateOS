@@ -6,8 +6,9 @@ import { Button } from "@/components/shared/ui";
 
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
-  { href: "#security-gate", label: "Security" },
+  { href: "#how-it-works", label: "How It Works" },
   { href: "#shortlet", label: "Shortlet" },
+  { href: "/security", label: "Security" },
 ];
 
 export function MobileNav() {
