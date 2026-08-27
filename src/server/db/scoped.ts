@@ -18,6 +18,7 @@ import type {
   EventRsvp,
   GateEntry,
   Guest,
+  HousekeepingTask,
   Invoice,
   ListingInquiry,
   MaintenanceComment,
@@ -416,6 +417,13 @@ export function scoped(estateId: string) {
       Omit<Prisma.AvailabilityBlockUncheckedCreateInput, "estateId" | "id" | "createdAt">,
       Prisma.AvailabilityBlockUncheckedUpdateInput
     >(prisma.availabilityBlock, "AvailabilityBlock", estateId),
+
+    housekeepingTask: makeScopedDelegate<
+      Prisma.HousekeepingTaskWhereInput,
+      HousekeepingTask,
+      Omit<Prisma.HousekeepingTaskUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.HousekeepingTaskUncheckedUpdateInput
+    >(prisma.housekeepingTask, "HousekeepingTask", estateId),
   };
 }
 

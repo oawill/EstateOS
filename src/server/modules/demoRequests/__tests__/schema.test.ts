@@ -9,7 +9,7 @@ const validInput = {
   organizationType: "RESIDENTIAL_ESTATE",
   country: "Nigeria",
   city: "Lagos",
-  numberOfUnits: "50",
+  unitRange: "RANGE_21_50",
   consent: true,
 };
 
@@ -19,7 +19,7 @@ describe("demoRequestSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it.each(["fullName", "email", "phone", "organizationName", "organizationType", "country", "city", "numberOfUnits"])(
+  it.each(["fullName", "email", "phone", "organizationName", "organizationType", "country", "city", "unitRange"])(
     "rejects a submission missing required field %s",
     (field) => {
       const rest = { ...validInput } as Record<string, unknown>;
@@ -39,8 +39,8 @@ describe("demoRequestSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects a non-positive numberOfUnits", () => {
-    const result = demoRequestSchema.safeParse({ ...validInput, numberOfUnits: "0" });
+  it("rejects an invalid unitRange value", () => {
+    const result = demoRequestSchema.safeParse({ ...validInput, unitRange: "NOT_A_REAL_RANGE" });
     expect(result.success).toBe(false);
   });
 
@@ -48,7 +48,7 @@ describe("demoRequestSchema", () => {
     const result = demoRequestSchema.safeParse({
       ...validInput,
       currentManagementMethods: ["WHATSAPP", "SPREADSHEETS"],
-      challenges: ["SERVICE_CHARGES_COLLECTIONS"],
+      primaryChallenge: "SERVICE_CHARGES_COLLECTIONS",
       interestedFeatures: ["BILLING_PAYMENTS", "VISITOR_QR_PIN"],
       comments: "Looking forward to a demo",
     });
@@ -56,7 +56,14 @@ describe("demoRequestSchema", () => {
   });
 
   it("rejects an unknown enum value in a multi-select field", () => {
-    const result = demoRequestSchema.safeParse({ ...validInput, challenges: ["NOT_A_REAL_CHALLENGE"] });
+    const result = demoRequestSchema.safeParse({ ...validInput, interestedFeatures: ["NOT_A_REAL_FEATURE"] });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts the new organization types added for the simplified form", () => {
+    for (const organizationType of ["SERVICED_APARTMENT", "MIXED_USE_DEVELOPMENT"]) {
+      const result = demoRequestSchema.safeParse({ ...validInput, organizationType });
+      expect(result.success).toBe(true);
+    }
   });
 });

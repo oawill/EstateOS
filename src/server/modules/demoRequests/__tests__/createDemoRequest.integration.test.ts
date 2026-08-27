@@ -13,7 +13,7 @@ function makeInput(overrides: Partial<DemoRequestInput> = {}): DemoRequestInput 
     organizationType: "RESIDENTIAL_ESTATE",
     country: "Nigeria",
     city: "Lagos",
-    numberOfUnits: 25,
+    unitRange: "RANGE_21_50",
     consent: true,
     ...overrides,
   };

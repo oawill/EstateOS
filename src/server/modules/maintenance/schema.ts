@@ -25,12 +25,3 @@ export const residentFeedbackSchema = z.object({
   feedback: z.string().trim().max(1000).optional(),
 });
 export type ResidentFeedbackInput = z.infer<typeof residentFeedbackSchema>;
-
-export const createVendorSchema = z.object({
-  name: z.string().trim().min(1, "Vendor name is required").max(160),
-  contactName: z.string().trim().max(120).optional(),
-  phone: z.string().trim().max(30).optional(),
-  email: z.string().trim().email().optional().or(z.literal("")),
-  category: z.nativeEnum(MaintenanceCategory).optional(),
-});
-export type CreateVendorInput = z.infer<typeof createVendorSchema>;

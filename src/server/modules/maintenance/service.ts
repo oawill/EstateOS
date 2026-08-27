@@ -4,7 +4,7 @@ import { scoped } from "@/server/db/scoped";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import { formatSequenceCode, nextSequenceNumber } from "@/server/modules/sequence";
-import type { CreateTicketInput, CreateVendorInput, ResidentFeedbackInput, TransitionTicketInput } from "./schema";
+import type { CreateTicketInput, ResidentFeedbackInput, TransitionTicketInput } from "./schema";
 
 // ---------------------------------------------------------------------------
 // SLA / overdue policy — a documented default, not a real product decision.
@@ -35,6 +35,7 @@ export function isOverdue(ticket: { status: MaintenanceStatus; priority: string;
 const ticketWithRelations = Prisma.validator<Prisma.MaintenanceTicketDefaultArgs>()({
   include: {
     resident: true,
+    shortletUnit: { include: { property: true } },
     vendor: true,
     assignedToUser: true,
     comments: { orderBy: { createdAt: "asc" } },
@@ -65,6 +66,54 @@ export async function createTicket(estateId: string, residentId: string, actorUs
   });
 
   return ticket;
+}
+
+/**
+ * EstateOS Shortlet's own "report issue" path — reuses this same engine
+ * (transitionTicket, priorities, statuses) rather than a parallel Shortlet
+ * maintenance system, per the product-architecture brief. shortletUnitId is
+ * set instead of residentId; every residential path above never touches
+ * this field.
+ */
+export async function createShortletMaintenanceTicket(
+  estateId: string,
+  unitId: string,
+  actorUserId: string,
+  input: CreateTicketInput,
+) {
+  const seq = await nextSequenceNumber(prisma, estateId, "maintenance");
+
+  const ticket = await scoped(estateId).maintenanceTicket.create({
+    shortletUnitId: unitId,
+    ticketNumber: formatSequenceCode("MNT", seq),
+    category: input.category,
+    description: input.description,
+    location: input.location || null,
+    priority: input.priority,
+    status: MaintenanceStatus.REPORTED,
+  });
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "shortlet.maintenance_reported",
+    entityType: "MaintenanceTicket",
+    entityId: ticket.id,
+    after: ticket,
+  });
+
+  return ticket;
+}
+
+export async function listShortletMaintenanceTickets(estateId: string, filter?: { status?: MaintenanceStatus }) {
+  return scoped(estateId).maintenanceTicket.findMany<TicketWithRelations>({
+    where: {
+      shortletUnitId: { not: null },
+      ...(filter?.status ? { status: filter.status } : {}),
+    } as never,
+    orderBy: { createdAt: "desc" },
+    include: ticketWithRelations.include,
+  });
 }
 
 export async function listTicketsForResident(estateId: string, residentId: string) {
@@ -216,33 +265,4 @@ export async function getMaintenanceSummary(estateId: string) {
     openCount: tickets.length,
     overdueCount: tickets.filter((t) => isOverdue(t)).length,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Vendors
-// ---------------------------------------------------------------------------
-
-export async function listVendors(estateId: string) {
-  return scoped(estateId).vendor.findMany({ orderBy: { name: "asc" } });
-}
-
-export async function createVendor(estateId: string, actorUserId: string, input: CreateVendorInput) {
-  const vendor = await scoped(estateId).vendor.create({
-    name: input.name,
-    contactName: input.contactName || null,
-    phone: input.phone || null,
-    email: input.email || null,
-    category: input.category,
-  });
-
-  await recordAudit({
-    estateId,
-    actorUserId,
-    action: "vendor.created",
-    entityType: "Vendor",
-    entityId: vendor.id,
-    after: vendor,
-  });
-
-  return vendor;
 }

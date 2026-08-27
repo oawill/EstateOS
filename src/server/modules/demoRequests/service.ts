@@ -26,27 +26,21 @@ export async function createDemoRequest(input: DemoRequestInput, ipHash: string 
       fullName: input.fullName,
       email: input.email,
       phone: input.phone,
-      preferredContactMethod: input.preferredContactMethod,
       organizationName: input.organizationName,
       organizationType: input.organizationType,
       country: input.country,
-      region: input.region,
       city: input.city,
       timezone: input.timezone,
-      numberOfEstates: input.numberOfEstates,
-      numberOfUnits: input.numberOfUnits,
-      numberOfResidents: input.numberOfResidents,
+      unitRange: input.unitRange,
       shortletUnits: input.shortletUnits,
-      currentManagementMethods: input.currentManagementMethods ?? [],
-      challenges: input.challenges ?? [],
+      shortletBookingProcess: input.shortletBookingProcess,
+      shortletChallenge: input.shortletChallenge,
+      primaryChallenge: input.primaryChallenge,
       interestedFeatures: input.interestedFeatures ?? [],
       preferredDemoDate: input.preferredDemoDate,
       preferredDemoTime: input.preferredDemoTime,
-      alternateDemoDatetime: input.alternateDemoDatetime,
       currentSoftware: input.currentSoftware,
-      primaryObjective: input.primaryObjective,
       comments: input.comments,
-      referralSource: input.referralSource,
       consent: input.consent,
       ipHash,
     },
@@ -86,6 +80,26 @@ export async function getDemoRequestDetail(id: string) {
   const request = await prisma.demoRequest.findUnique({ where: { id }, include: { assignedTo: true } });
   if (!request) throw new NotFoundError("Demo request");
   return request;
+}
+
+/**
+ * Public, unauthenticated lookup for the success screen — only ever reads
+ * back the prospect's own just-submitted data (first name + whether
+ * Shortlet was selected), keyed by the reference number already shown to
+ * them, rather than stuffing more PII into the success-page URL. Deliberately
+ * returns a minimal shape, not the full record (email/phone/comments etc.
+ * never render on this public page).
+ */
+export async function getDemoRequestByReference(referenceNumber: string) {
+  const request = await prisma.demoRequest.findUnique({
+    where: { referenceNumber },
+    select: { fullName: true, interestedFeatures: true },
+  });
+  if (!request) return null;
+  return {
+    firstName: request.fullName.trim().split(/\s+/)[0] || request.fullName,
+    wantsShortlet: request.interestedFeatures.includes("SHORTLET_MANAGEMENT"),
+  };
 }
 
 export async function updateDemoRequestStatus(actorUserId: string, id: string, status: DemoRequestStatus) {

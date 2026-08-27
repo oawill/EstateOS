@@ -6,7 +6,15 @@ import { DEMO_REQUEST_STATUS_TONE } from "@/lib/statusTones";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
 import { listAssignableStaff, listDemoRequests } from "@/server/modules/demoRequests/service";
-import { ORGANIZATION_TYPE_OPTIONS } from "@/app/request-demo/labels";
+import { UNIT_RANGE_OPTIONS } from "@/app/request-demo/labels";
+
+function formatUnits(r: { unitRange: string | null; numberOfUnits: number | null }): string {
+  if (r.unitRange) {
+    const label = UNIT_RANGE_OPTIONS.find(([value]) => value === r.unitRange)?.[1] ?? r.unitRange;
+    return `${label} units`;
+  }
+  return r.numberOfUnits ? `${r.numberOfUnits} units` : "Units not specified";
+}
 
 export default async function DemoRequestsPage({
   searchParams,
@@ -53,9 +61,9 @@ export default async function DemoRequestsPage({
           </Select>
           <Select name="organizationType" defaultValue={params.organizationType ?? ""}>
             <option value="">All types</option>
-            {ORGANIZATION_TYPE_OPTIONS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
+            {Object.values(OrganizationType).map((t) => (
+              <option key={t} value={t}>
+                {t.replaceAll("_", " ")}
               </option>
             ))}
           </Select>
@@ -98,7 +106,7 @@ export default async function DemoRequestsPage({
                   </p>
                   <p className="mt-0.5 text-sm text-foreground-muted">
                     {r.organizationName} · {r.organizationType.replaceAll("_", " ")} · {r.city}, {r.country} ·{" "}
-                    {r.numberOfUnits} units
+                    {formatUnits(r)}
                   </p>
                   <p className="mt-1 text-xs text-foreground-muted">
                     {formatDate(r.createdAt)}

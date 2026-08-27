@@ -6,6 +6,7 @@ import { requireEstatePermission } from "@/server/auth/guards";
 import { listProperties } from "@/server/modules/shortlet/properties";
 import { listReservations } from "@/server/modules/shortlet/reservations";
 import { listAvailabilityBlocksInRange } from "@/server/modules/shortlet/availability";
+import { listHousekeepingTasks } from "@/server/modules/shortlet/housekeeping";
 
 type ViewMode = "day" | "week" | "month";
 
@@ -44,6 +45,7 @@ const CELL_TONE: Record<string, string> = {
   available: "bg-surface-muted",
   reserved: "bg-warning/20",
   occupied: "bg-primary/20",
+  cleaning: "bg-info/20",
   owner_blocked: "bg-foreground/15",
   unavailable: "bg-danger/15",
 };
@@ -61,9 +63,9 @@ export default async function ShortletCalendarPage({
   const anchorDate = sp.date ? new Date(sp.date) : new Date();
   const { start, end, days } = rangeFor(view, isNaN(anchorDate.getTime()) ? new Date() : anchorDate);
 
-  const { properties, reservations, blocks } = await guardPage(async () => {
+  const { properties, reservations, blocks, cleaningUnitIds } = await guardPage(async () => {
     const { membership } = await requireEstatePermission(estateSlug, "shortlet-availability:*");
-    const [properties, reservations, blocks] = await Promise.all([
+    const [properties, reservations, blocks, openHousekeepingTasks] = await Promise.all([
       listProperties(membership.estateId),
       listReservations(membership.estateId, {
         from: start,
@@ -71,12 +73,20 @@ export default async function ShortletCalendarPage({
         propertyId: sp.propertyId || undefined,
       }),
       listAvailabilityBlocksInRange(membership.estateId, start, end),
+      listHousekeepingTasks(membership.estateId),
     ]);
-    return { properties, reservations, blocks };
+    const cleaningUnitIds = new Set(
+      openHousekeepingTasks.filter((t) => t.status !== "COMPLETED").map((t) => t.unitId),
+    );
+    return { properties, reservations, blocks, cleaningUnitIds };
   });
 
   const visibleProperties = sp.propertyId ? properties.filter((p) => p.id === sp.propertyId) : properties;
   const units = visibleProperties.flatMap((p) => p.units.map((u) => ({ ...u, propertyName: p.name })));
+
+  const today = new Date();
+  const isToday = (day: Date) =>
+    day.getUTCFullYear() === today.getUTCFullYear() && day.getUTCMonth() === today.getUTCMonth() && day.getUTCDate() === today.getUTCDate();
 
   function cellStatus(unitId: string, day: Date): string {
     const dayEnd = new Date(day);
@@ -84,6 +94,10 @@ export default async function ShortletCalendarPage({
 
     const block = blocks.find((b) => b.unitId === unitId && b.startDate < dayEnd && b.endDate > day);
     if (block) return block.reason === "OWNER_BLOCKED" ? "owner_blocked" : "unavailable";
+
+    // Housekeeping tasks carry no date range — "cleaning" only marks the
+    // unit's current-state cell (today), not a future span.
+    if (isToday(day) && cleaningUnitIds.has(unitId)) return "cleaning";
 
     const occupied = reservations.find(
       (r) => r.unitId === unitId && r.status === "CHECKED_IN" && r.checkInDate < dayEnd && r.checkOutDate > day,
@@ -149,6 +163,7 @@ export default async function ShortletCalendarPage({
         <span className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${CELL_TONE.available}`} /> Available</span>
         <span className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${CELL_TONE.reserved}`} /> Reserved</span>
         <span className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${CELL_TONE.occupied}`} /> Occupied</span>
+        <span className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${CELL_TONE.cleaning}`} /> Cleaning</span>
         <span className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${CELL_TONE.owner_blocked}`} /> Owner blocked</span>
         <span className="flex items-center gap-1.5"><span className={`h-3 w-3 rounded ${CELL_TONE.unavailable}`} /> Unavailable</span>
       </div>

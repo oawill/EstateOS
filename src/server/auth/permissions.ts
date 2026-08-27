@@ -48,7 +48,9 @@ export type Permission =
   | "shortlet-units:*"
   | "shortlet-reservations:*"
   | "shortlet-guests:*"
-  | "shortlet-availability:*";
+  | "shortlet-availability:*"
+  | "shortlet-housekeeping:*"
+  | "shortlet-maintenance:*";
 
 const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.PLATFORM_SUPER_ADMIN]: ["platform:*"],
@@ -85,6 +87,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "shortlet-reservations:*",
     "shortlet-guests:*",
     "shortlet-availability:*",
+    "shortlet-housekeeping:*",
+    "shortlet-maintenance:*",
   ],
 
   [Role.FINANCE]: ["charges:*", "invoices:*", "payments:*", "receipts:*", "reports:read"],

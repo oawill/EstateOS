@@ -1,5 +1,13 @@
-import { ShortletBookingSource, ShortletPropertyType, ShortletPropertyStatus, AvailabilityBlockReason } from "@prisma/client";
+import {
+  ShortletBookingSource,
+  ShortletPropertyType,
+  ShortletPropertyStatus,
+  AvailabilityBlockReason,
+  HousekeepingStatus,
+  MaintenancePriority,
+} from "@prisma/client";
 import { z } from "zod";
+import { createTicketSchema } from "@/server/modules/maintenance/schema";
 
 export const createPropertySchema = z.object({
   name: z.string().trim().min(1, "Property name is required").max(160),
@@ -82,3 +90,28 @@ export const createAvailabilityBlockSchema = z
     path: ["endDate"],
   });
 export type CreateAvailabilityBlockInput = z.infer<typeof createAvailabilityBlockSchema>;
+
+export const createHousekeepingTaskSchema = z.object({
+  unitId: z.string().cuid(),
+  assignedToUserId: z.string().cuid().optional(),
+  dueAt: z.coerce.date().optional(),
+  priority: z.nativeEnum(MaintenancePriority).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+export type CreateHousekeepingTaskInput = z.infer<typeof createHousekeepingTaskSchema>;
+
+export const updateHousekeepingTaskSchema = z.object({
+  status: z.nativeEnum(HousekeepingStatus),
+  assignedToUserId: z.string().cuid().optional().or(z.literal("")),
+  dueAt: z.coerce.date().optional(),
+  priority: z.nativeEnum(MaintenancePriority).optional(),
+  notes: z.string().trim().max(2000).optional(),
+});
+export type UpdateHousekeepingTaskInput = z.infer<typeof updateHousekeepingTaskSchema>;
+
+// Reuses the exact residential ticket shape (see maintenance/schema.ts) plus
+// the unit this report is for — same engine, Shortlet-specific context.
+export const createShortletMaintenanceTicketSchema = createTicketSchema.extend({
+  unitId: z.string().cuid(),
+});
+export type CreateShortletMaintenanceTicketInput = z.infer<typeof createShortletMaintenanceTicketSchema>;

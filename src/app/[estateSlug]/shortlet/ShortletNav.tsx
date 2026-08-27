@@ -9,6 +9,8 @@ const NAV = [
   { href: "reservations", label: "Reservations" },
   { href: "properties", label: "Properties" },
   { href: "guests", label: "Guests" },
+  { href: "housekeeping", label: "Housekeeping" },
+  { href: "maintenance", label: "Maintenance" },
 ];
 
 export function ShortletNav({ estateSlug }: { estateSlug: string }) {

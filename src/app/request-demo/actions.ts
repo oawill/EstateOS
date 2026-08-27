@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { ChallengeArea, FeatureInterest, ManagementMethod } from "@prisma/client";
+import { FeatureInterest } from "@prisma/client";
 import { ForbiddenError } from "@/lib/errors";
 import { demoRequestSchema } from "@/server/modules/demoRequests/schema";
 import { createDemoRequest } from "@/server/modules/demoRequests/service";
@@ -46,27 +46,20 @@ export async function submitDemoRequestAction(
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     phone: formData.get("phone"),
-    preferredContactMethod: formData.get("preferredContactMethod") || undefined,
     organizationName: formData.get("organizationName"),
     organizationType: formData.get("organizationType"),
     country: formData.get("country"),
-    region: formData.get("region") || undefined,
     city: formData.get("city"),
-    timezone: formData.get("timezone") || undefined,
-    numberOfEstates: formData.get("numberOfEstates") || undefined,
-    numberOfUnits: formData.get("numberOfUnits"),
-    numberOfResidents: formData.get("numberOfResidents") || undefined,
+    unitRange: formData.get("unitRange"),
+    primaryChallenge: formData.get("primaryChallenge") || undefined,
     shortletUnits: formData.get("shortletUnits") || undefined,
-    currentManagementMethods: collectMultiValue(formData, "currentManagementMethods", Object.values(ManagementMethod)),
-    challenges: collectMultiValue(formData, "challenges", Object.values(ChallengeArea)),
+    shortletBookingProcess: formData.get("shortletBookingProcess") || undefined,
+    shortletChallenge: formData.get("shortletChallenge") || undefined,
     interestedFeatures: collectMultiValue(formData, "interestedFeatures", Object.values(FeatureInterest)),
     preferredDemoDate: formData.get("preferredDemoDate") || undefined,
     preferredDemoTime: formData.get("preferredDemoTime") || undefined,
-    alternateDemoDatetime: formData.get("alternateDemoDatetime") || undefined,
-    currentSoftware: formData.get("currentSoftware") || undefined,
-    primaryObjective: formData.get("primaryObjective") || undefined,
+    timezone: formData.get("timezone") || undefined,
     comments: formData.get("comments") || undefined,
-    referralSource: formData.get("referralSource") || undefined,
     consent: formData.get("consent") === "on",
   });
 

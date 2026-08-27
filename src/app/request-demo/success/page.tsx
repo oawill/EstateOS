@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button, Card } from "@/components/shared/ui";
+import { getDemoRequestByReference } from "@/server/modules/demoRequests/service";
 
 export default async function DemoRequestSuccessPage({
   searchParams,
@@ -8,6 +9,7 @@ export default async function DemoRequestSuccessPage({
   searchParams: Promise<{ ref?: string }>;
 }) {
   const { ref } = await searchParams;
+  const lookup = ref ? await getDemoRequestByReference(ref) : null;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col items-center justify-center px-4 py-12 text-center">
@@ -18,10 +20,11 @@ export default async function DemoRequestSuccessPage({
             <path d="M5 13l4 4L19 7" />
           </svg>
         </span>
-        <h1 className="mt-4 text-xl font-semibold">Demo request received</h1>
+        <h1 className="mt-4 text-xl font-semibold">Demo request received.</h1>
+        {lookup && <p className="mt-1 text-sm font-medium">Thanks, {lookup.firstName}.</p>}
         <p className="mt-2 text-sm text-foreground-muted">
-          Thank you for your interest in EstateOS. Our team will review your information and contact you to arrange
-          your demonstration.
+          We&apos;ve received your EstateOS demo request. Our team will review your requirements and contact you to
+          confirm the session.
         </p>
         {ref && (
           <p className="mt-4 rounded-lg bg-surface-muted px-3 py-2 text-sm font-medium">
@@ -31,14 +34,16 @@ export default async function DemoRequestSuccessPage({
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Link href="/">
             <Button type="button" variant="secondary" className="w-full sm:w-auto">
-              Return to Home
+              Return to EstateOS
             </Button>
           </Link>
-          <Link href="/#features">
-            <Button type="button" className="w-full sm:w-auto">
-              Explore EstateOS
-            </Button>
-          </Link>
+          {lookup?.wantsShortlet && (
+            <Link href="/#shortlet">
+              <Button type="button" className="w-full sm:w-auto">
+                Explore EstateOS Shortlet
+              </Button>
+            </Link>
+          )}
         </div>
       </Card>
     </main>

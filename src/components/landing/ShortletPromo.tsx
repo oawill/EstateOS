@@ -7,14 +7,14 @@ export function ShortletPromo() {
       <div className="mx-auto max-w-6xl px-4 py-20">
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
           <div>
-            <p className="text-sm font-medium text-foreground-muted">Also powering your shortlet business.</p>
-            <h2 className="mt-1 text-3xl font-semibold tracking-tight">
+            <p className="text-sm font-medium text-foreground-muted">
               EstateOS <span className="text-primary">Shortlet</span>
-            </h2>
+            </p>
+            <h2 className="mt-1 text-3xl font-semibold tracking-tight">Run your shortlet operation from reservation to checkout.</h2>
             <p className="mt-4 max-w-lg text-foreground-muted">
-              Manage reservations, guests, payments, housekeeping, maintenance, and property operations from one
-              platform — a dedicated module for shortlet owners and serviced-apartment operators, kept separate from
-              standard community management.
+              Manage properties, reservations, guests, payments, housekeeping, maintenance, and owner reporting from
+              one operational workspace — a dedicated module for shortlet owners and serviced-apartment operators,
+              kept separate from standard community management.
             </p>
             <div className="mt-6">
               <Link href="/request-demo">

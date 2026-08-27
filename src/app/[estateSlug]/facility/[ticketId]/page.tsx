@@ -5,7 +5,7 @@ import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { PRIORITY_TONE, TICKET_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
 import { getTicketForStaff, isOverdue, listAssignableStaff } from "@/server/modules/maintenance/service";
-import { listVendors } from "@/server/modules/maintenance/service";
+import { listVendors } from "@/server/modules/vendors/service";
 import { TransitionForm } from "../TransitionForm";
 
 export default async function FacilityTicketPage({
@@ -42,7 +42,9 @@ export default async function FacilityTicketPage({
         <p className="mt-3 text-sm text-slate-700">{ticket.description}</p>
         {ticket.location && <p className="mt-2 text-sm text-slate-500">Location: {ticket.location}</p>}
         <p className="mt-2 text-sm text-slate-500">
-          Reported by {ticket.resident.firstName} {ticket.resident.lastName}
+          {ticket.resident
+            ? `Reported by ${ticket.resident.firstName} ${ticket.resident.lastName}`
+            : `EstateOS Shortlet — ${ticket.shortletUnit?.property.name} (${ticket.shortletUnit?.unitLabel})`}
         </p>
       </Card>
 

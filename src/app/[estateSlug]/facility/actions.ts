@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { requireEstatePermission } from "@/server/auth/guards";
-import { createVendor, transitionTicket } from "@/server/modules/maintenance/service";
-import { createVendorSchema, transitionTicketSchema } from "@/server/modules/maintenance/schema";
+import { transitionTicket } from "@/server/modules/maintenance/service";
+import { transitionTicketSchema } from "@/server/modules/maintenance/schema";
+import { createVendor } from "@/server/modules/vendors/service";
+import { createVendorSchema } from "@/server/modules/vendors/schema";
 
 export interface TransitionTicketFormState {
   error?: string;

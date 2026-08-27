@@ -163,7 +163,25 @@ enum OrganizationType {
   PROPERTY_DEVELOPER
   SHORTLET_OPERATOR
   MIXED_RESIDENTIAL_COMMUNITY
+  // Added for the simplified Request Demo form's 9-option list — kept
+  // distinct from SHORTLET_OPERATOR (a serviced-apartment building is not
+  // necessarily run as a shortlet business) and from the existing
+  // MIXED_RESIDENTIAL_COMMUNITY (mixed housing types within one residential
+  // community is a different concept from a mixed-use commercial+
+  // residential development).
+  SERVICED_APARTMENT
+  MIXED_USE_DEVELOPMENT
   OTHER
+}
+
+enum UnitRangeBucket {
+  RANGE_1_20
+  RANGE_21_50
+  RANGE_51_100
+  RANGE_101_250
+  RANGE_251_500
+  RANGE_501_1000
+  RANGE_1000_PLUS
 }
 
 enum PreferredContactMethod {
@@ -225,6 +243,13 @@ enum DemoRequestStatus {
   PROPOSAL_SENT
   WON
   LOST
+  // Added for the richer admin pipeline — additive only, the three above
+  // stay in the schema for any already-stored rows rather than being
+  // renamed/removed (Postgres enum values can't be safely dropped anyway).
+  QUALIFIED
+  PILOT
+  CUSTOMER
+  NOT_PROCEEDING
 }
 
 enum CommunityPostType {
@@ -359,6 +384,13 @@ enum AvailabilityBlockReason {
   OTHER
 }
 
+enum HousekeepingStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+}
+
 // ---------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------
@@ -379,6 +411,7 @@ model User {
   residentLinks              Resident[]
   auditLogs                  AuditLog[]          @relation("ActorUser")
   assignedMaintenanceTickets MaintenanceTicket[] @relation("MaintenanceAssignee")
+  assignedHousekeepingTasks  HousekeepingTask[]  @relation("HousekeepingAssignee")
   assignedDemoRequests       DemoRequest[]       @relation("DemoRequestAssignee")
   resolvedCommunityReports   CommunityReport[]   @relation("CommunityReportResolver")
 }
@@ -439,13 +472,24 @@ model DemoRequest {
   city     String
   timezone String?
 
-  numberOfEstates   Int?
-  numberOfUnits     Int
-  numberOfResidents Int?
-  shortletUnits     Int?
+  numberOfEstates        Int?
+  // Nullable — the simplified form captures unitRange (a bucket) instead of
+  // a raw count. Kept for older rows / anyone who still supplies an exact
+  // number; the admin UI prefers unitRange's label when both are present.
+  numberOfUnits          Int?
+  unitRange              UnitRangeBucket?
+  numberOfResidents      Int?
+  shortletUnits          Int?
+  // Only asked when interestedFeatures includes SHORTLET_MANAGEMENT.
+  shortletBookingProcess String?
+  shortletChallenge      String?
 
   currentManagementMethods ManagementMethod[]
   challenges               ChallengeArea[]
+  // The simplified form's single "biggest operational challenge" question —
+  // distinct from the (now-unused-in-the-UI, still-stored) multi-select
+  // `challenges` above, which older rows may still have.
+  primaryChallenge         ChallengeArea?
   interestedFeatures       FeatureInterest[]
 
   preferredDemoDate     DateTime?
@@ -544,6 +588,7 @@ model Estate {
   guests                 Guest[]
   reservations           Reservation[]
   availabilityBlocks     AvailabilityBlock[]
+  housekeepingTasks      HousekeepingTask[]
 
   @@index([subscriptionStatus])
 }
@@ -904,15 +949,24 @@ model GateEntry {
 // record-keeping — not a login. A vendor's own staff who need to see
 // their assigned tickets are separate Users with Role.VENDOR, linked via
 // MaintenanceTicket.assignedToUserId, not via this model.
+// Vendor is a first-class EstateOS entity, not information duplicated across
+// maintenance requests — see src/server/modules/vendors/. Still a
+// directory-only record (no login), same as before; isApproved/contract
+// dates/notes are the lightweight expansion requested, deliberately not a
+// full procurement/invoicing subsystem.
 model Vendor {
-  id          String               @id @default(cuid())
-  estateId    String
-  name        String
-  contactName String?
-  phone       String?
-  email       String?
-  category    MaintenanceCategory?
-  createdAt   DateTime             @default(now())
+  id                String               @id @default(cuid())
+  estateId          String
+  name              String
+  contactName       String?
+  phone             String?
+  email             String?
+  category          MaintenanceCategory?
+  isApproved        Boolean              @default(true)
+  contractStartDate DateTime?
+  contractEndDate   DateTime?
+  notes             String?
+  createdAt         DateTime             @default(now())
 
   estate  Estate              @relation(fields: [estateId], references: [id], onDelete: Cascade)
   tickets MaintenanceTicket[]
@@ -924,7 +978,13 @@ model MaintenanceTicket {
   id               String              @id @default(cuid())
   estateId         String
   ticketNumber     String
-  residentId       String // reporter
+  // Nullable so the same engine can carry an EstateOS Shortlet ticket
+  // (shortletUnitId set, no resident) alongside a residential one
+  // (residentId set, no shortlet unit) — exactly one is ever set. Every
+  // resident-facing code path still always supplies residentId and never
+  // touches shortletUnitId, so existing behavior is unchanged.
+  residentId       String? // reporter (residential)
+  shortletUnitId   String? // EstateOS Shortlet unit (shortlet)
   category         MaintenanceCategory
   description      String
   location         String?
@@ -944,7 +1004,8 @@ model MaintenanceTicket {
   updatedAt  DateTime  @updatedAt
 
   estate         Estate               @relation(fields: [estateId], references: [id], onDelete: Cascade)
-  resident       Resident             @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  resident       Resident?            @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  shortletUnit   ShortletUnit?        @relation(fields: [shortletUnitId], references: [id], onDelete: Cascade)
   vendor         Vendor?              @relation(fields: [vendorId], references: [id])
   assignedToUser User?                @relation("MaintenanceAssignee", fields: [assignedToUserId], references: [id])
   comments       MaintenanceComment[]
@@ -952,6 +1013,7 @@ model MaintenanceTicket {
   @@unique([estateId, ticketNumber])
   @@index([estateId])
   @@index([residentId])
+  @@index([shortletUnitId])
   @@index([assignedToUserId])
 }
 
@@ -1477,6 +1539,8 @@ model ShortletUnit {
   property           ShortletProperty    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   reservations       Reservation[]
   availabilityBlocks AvailabilityBlock[]
+  maintenanceTickets MaintenanceTicket[]
+  housekeepingTasks  HousekeepingTask[]
 
   @@index([estateId])
   @@index([propertyId])
@@ -1513,29 +1577,37 @@ model Guest {
 // callers, same "recompute rather than trust a stale field" instinct as
 // Invoice.status elsewhere in this schema.
 model Reservation {
-  id                   String                @id @default(cuid())
-  estateId             String
-  reservationNumber    String
-  unitId               String
-  guestId              String
-  checkInDate          DateTime
-  checkOutDate         DateTime
-  numberOfGuests       Int
-  nightlyRateMinor     Int
-  nights               Int
-  taxesMinor           Int                   @default(0)
-  cleaningFeeMinor     Int                   @default(0)
-  securityDepositMinor Int                   @default(0)
-  discountMinor        Int                   @default(0)
-  additionalFeesMinor  Int                   @default(0)
-  totalAmountMinor     Int
-  amountPaidMinor      Int                   @default(0)
-  bookingSource        ShortletBookingSource
-  status               ReservationStatus     @default(PENDING)
-  notes                String?
-  createdByUserId      String?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  id                    String                @id @default(cuid())
+  estateId              String
+  reservationNumber     String
+  unitId                String
+  guestId               String
+  checkInDate           DateTime
+  checkOutDate          DateTime
+  numberOfGuests        Int
+  nightlyRateMinor      Int
+  nights                Int
+  taxesMinor            Int                   @default(0)
+  cleaningFeeMinor      Int                   @default(0)
+  securityDepositMinor  Int                   @default(0)
+  discountMinor         Int                   @default(0)
+  additionalFeesMinor   Int                   @default(0)
+  totalAmountMinor      Int
+  amountPaidMinor       Int                   @default(0)
+  bookingSource         ShortletBookingSource
+  status                ReservationStatus     @default(PENDING)
+  notes                 String?
+  createdByUserId       String?
+  // Future channel-manager integration readiness (spec: "ensure
+  // reservations can contain booking source, external reservation ID,
+  // external channel, synchronization status") — no integration or sync
+  // logic exists yet, these are just cheap, additive columns so a future
+  // integration doesn't need another migration.
+  externalReservationId String?
+  externalChannel       String?
+  syncStatus            String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   estate Estate       @relation(fields: [estateId], references: [id], onDelete: Cascade)
   unit   ShortletUnit @relation(fields: [unitId], references: [id])
@@ -1544,6 +1616,33 @@ model Reservation {
   @@unique([estateId, reservationNumber])
   @@index([estateId, status])
   @@index([unitId, checkInDate, checkOutDate])
+}
+
+// A cleaning task for a Shortlet unit. "Cleaning required" for dashboard/
+// calendar purposes is derived (does this unit have an open task?), not a
+// stored status on ShortletUnit — avoids two sources of truth needing to
+// stay in sync. Auto-created (status PENDING) when a Reservation transitions
+// to CHECKED_OUT — see updateReservationStatus in
+// src/server/modules/shortlet/reservations.ts.
+model HousekeepingTask {
+  id               String               @id @default(cuid())
+  estateId         String
+  unitId           String
+  status           HousekeepingStatus   @default(PENDING)
+  assignedToUserId String?
+  dueAt            DateTime?
+  priority         MaintenancePriority?
+  notes            String?
+  completedAt      DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  estate         Estate       @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  unit           ShortletUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  assignedToUser User?        @relation("HousekeepingAssignee", fields: [assignedToUserId], references: [id])
+
+  @@index([estateId, status])
+  @@index([unitId])
 }
 
 // Owner-blocked / manually-unavailable date ranges, feeding the calendar's

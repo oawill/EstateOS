@@ -48,6 +48,10 @@ export const DEMO_REQUEST_STATUS_TONE: Record<DemoRequestStatus, Tone> = {
   PROPOSAL_SENT: "warning",
   WON: "success",
   LOST: "danger",
+  QUALIFIED: "info",
+  PILOT: "warning",
+  CUSTOMER: "success",
+  NOT_PROCEEDING: "danger",
 };
 
 export const LISTING_STATUS_TONE: Record<ClassifiedListingStatus, Tone> = {

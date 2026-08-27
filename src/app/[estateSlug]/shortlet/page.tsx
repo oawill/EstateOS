@@ -26,16 +26,19 @@ export default async function ShortletDashboardPage({ params }: { params: Promis
       <h1 className="text-xl font-semibold">Today</h1>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiCard label="Properties" value={summary.totalProperties} />
+        <KpiCard label="Occupancy rate" value={`${summary.occupancyRate}%`} tone="success" />
         <KpiCard label="Available units" value={summary.availableUnits} tone="success" />
         <KpiCard label="Occupied units" value={summary.occupiedUnits} />
-        <KpiCard label="Not ready" value={summary.propertiesNotReady} tone={summary.propertiesNotReady > 0 ? "danger" : "neutral"} />
+        <KpiCard label="Properties" value={summary.totalProperties} />
         <KpiCard label="Arrivals today" value={summary.arrivalsToday} tone="gray" />
         <KpiCard label="Departures today" value={summary.departuresToday} tone="gray" />
         <KpiCard label="Current guests" value={summary.currentGuests} />
-        <KpiCard label="Outstanding balances" value={fmt(summary.outstandingTotalMinor)} tone={summary.outstandingTotalMinor > 0 ? "danger" : "neutral"} />
+        <KpiCard label="Not ready" value={summary.propertiesNotReady} tone={summary.propertiesNotReady > 0 ? "danger" : "neutral"} />
         <KpiCard label="Revenue today" value={fmt(summary.revenueTodayMinor)} tone="success" />
         <KpiCard label="Revenue this month" value={fmt(summary.revenueThisMonthMinor)} tone="success" />
+        <KpiCard label="Outstanding balances" value={fmt(summary.outstandingTotalMinor)} tone={summary.outstandingTotalMinor > 0 ? "danger" : "neutral"} />
+        <KpiCard label="Cleaning required" value={summary.cleaningRequiredCount} tone={summary.cleaningRequiredCount > 0 ? "warning" : "neutral"} />
+        <KpiCard label="Maintenance issues" value={summary.maintenanceIssuesCount} tone={summary.maintenanceIssuesCount > 0 ? "danger" : "neutral"} />
       </div>
 
       <section>

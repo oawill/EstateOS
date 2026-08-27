@@ -4,7 +4,13 @@ import { DEMO_REQUEST_STATUS_TONE } from "@/lib/statusTones";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
 import { getDemoRequestDetail, listAssignableStaff } from "@/server/modules/demoRequests/service";
+import { UNIT_RANGE_OPTIONS } from "@/app/request-demo/labels";
 import { DemoRequestAdminControls } from "./DemoRequestAdminControls";
+
+function formatUnitRange(range: string | null): string | null {
+  if (!range) return null;
+  return UNIT_RANGE_OPTIONS.find(([value]) => value === range)?.[1] ?? range.replaceAll("_", " ");
+}
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === "") return null;
@@ -65,8 +71,8 @@ export default async function DemoRequestDetailPage({ params }: { params: Promis
       <Card>
         <h2 className="mb-4 font-medium">Portfolio</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Units/properties" value={formatUnitRange(request.unitRange) ?? request.numberOfUnits} />
           <Field label="Estates/communities managed" value={request.numberOfEstates} />
-          <Field label="Units/properties" value={request.numberOfUnits} />
           <Field label="Residents/occupants" value={request.numberOfResidents} />
           <Field label="Shortlet units" value={request.shortletUnits} />
         </div>
@@ -75,11 +81,13 @@ export default async function DemoRequestDetailPage({ params }: { params: Promis
       <Card>
         <h2 className="mb-4 font-medium">What they need</h2>
         <div className="space-y-4">
-          <Field label="Current management methods" value={formatEnumList(request.currentManagementMethods)} />
-          <Field label="Main challenges" value={formatEnumList(request.challenges)} />
+          <Field label="Biggest operational challenge" value={request.primaryChallenge?.replaceAll("_", " ")} />
           <Field label="Features of interest" value={formatEnumList(request.interestedFeatures)} />
+          <Field label="Current booking process (shortlet)" value={request.shortletBookingProcess} />
+          <Field label="Main shortlet challenge" value={request.shortletChallenge} />
+          <Field label="Current management methods" value={formatEnumList(request.currentManagementMethods)} />
+          <Field label="Main challenges (legacy multi-select)" value={formatEnumList(request.challenges)} />
           <Field label="Current software" value={request.currentSoftware} />
-          <Field label="Primary objective" value={request.primaryObjective} />
         </div>
       </Card>
 

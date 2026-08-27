@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import type { DemoRequest } from "@prisma/client";
+import { UNIT_RANGE_OPTIONS } from "@/app/request-demo/labels";
 
 function getBaseUrl(): string {
   return process.env.AUTH_URL ?? "http://localhost:3000";
@@ -45,6 +46,11 @@ function formatDate(date: Date | null): string {
   return new Intl.DateTimeFormat("en-NG", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).format(date);
 }
 
+function formatUnitRange(range: string | null): string {
+  if (!range) return "Not specified";
+  return UNIT_RANGE_OPTIONS.find(([value]) => value === range)?.[1] ?? range.replaceAll("_", " ");
+}
+
 export async function sendCustomerServiceNotification(request: DemoRequest): Promise<void> {
   const customerServiceEmail = process.env.CUSTOMER_SERVICE_EMAIL;
   if (!customerServiceEmail) {
@@ -53,25 +59,26 @@ export async function sendCustomerServiceNotification(request: DemoRequest): Pro
   }
 
   const portalUrl = `${getBaseUrl()}/platform/demo-requests/${request.id}`;
+  const wantsShortlet = request.interestedFeatures.includes("SHORTLET_MANAGEMENT");
 
-  const text = `New EstateOS demo request
+  const text = `New EstateOS Demo Request
 
 Reference: ${request.referenceNumber}
-Prospect: ${request.fullName}
-Organization: ${request.organizationName} (${request.organizationType.replaceAll("_", " ")})
+Name: ${request.fullName}
+Organization: ${request.organizationName}
 Email: ${request.email}
 Phone/WhatsApp: ${request.phone}
-Location: ${request.city}, ${request.country}
+Country: ${request.country}, ${request.city}
+Organization type: ${request.organizationType.replaceAll("_", " ")}
+Units: ${formatUnitRange(request.unitRange)}${request.numberOfUnits ? ` (${request.numberOfUnits})` : ""}
 
-Units under management: ${request.numberOfUnits}
+Main challenge: ${request.primaryChallenge ? request.primaryChallenge.replaceAll("_", " ") : "Not specified"}
+Features interested in: ${formatList(request.interestedFeatures)}
+EstateOS Shortlet interest: ${wantsShortlet ? "Yes" : "No"}${wantsShortlet && request.shortletUnits ? ` (${request.shortletUnits} units)` : ""}
 
-Main challenges: ${formatList(request.challenges)}
-Features requested: ${formatList(request.interestedFeatures)}
+Preferred demo date/time: ${formatDate(request.preferredDemoDate)}${request.preferredDemoTime ? `, ${request.preferredDemoTime}` : ""}${request.timezone ? ` (${request.timezone})` : ""}
 
-Preferred demo date: ${formatDate(request.preferredDemoDate)}
-Preferred demo time: ${request.preferredDemoTime ?? "Not specified"}
-
-Comments:
+Additional comments:
 ${request.comments ?? "None"}
 
 Open in the Super Admin portal: ${portalUrl}
@@ -85,12 +92,17 @@ Open in the Super Admin portal: ${portalUrl}
 }
 
 export async function sendProspectConfirmation(request: DemoRequest): Promise<void> {
+  const timingLine =
+    request.preferredDemoDate || request.preferredDemoTime
+      ? `\nYou noted a preference for ${formatDate(request.preferredDemoDate)}${request.preferredDemoTime ? `, ${request.preferredDemoTime}` : ""} — we'll do our best to accommodate this when we confirm your session.\n`
+      : "";
+
   const text = `Hi ${request.fullName},
 
-Thank you for your interest in EstateOS. We've received your demo request and our team will review your information and contact you to arrange your demonstration.
+Thank you for your interest in EstateOS. We've received your demo request and our team will review your requirements and contact you to confirm the session.
 
 Your reference number is: ${request.referenceNumber}
-
+${timingLine}
 Please note this confirms receipt only — it does not confirm your preferred date or time. A member of our team will reach out to schedule the actual demonstration.
 
 If you have any questions in the meantime, just reply to this email.

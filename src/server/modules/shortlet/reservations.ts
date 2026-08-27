@@ -5,6 +5,7 @@ import { recordAudit } from "@/server/modules/audit";
 import { formatSequenceCode, nextSequenceNumber } from "@/server/modules/sequence";
 import { NotFoundError } from "@/lib/errors";
 import { hasOverlap } from "./availability";
+import { createHousekeepingTask } from "./housekeeping";
 import type { CreateReservationInput } from "./schema";
 
 export function nightsBetween(checkInDate: Date, checkOutDate: Date): number {
@@ -151,6 +152,13 @@ export async function updateReservationStatus(
     before: { status: reservation.status },
     after: { status: updated.status },
   });
+
+  // "Guest checks out -> unit becomes Cleaning Required -> cleaning task
+  // created" — a direct call here, not a generic automation/event system,
+  // per the brief's own "avoid unnecessary automation complexity" caution.
+  if (status === ReservationStatus.CHECKED_OUT) {
+    await createHousekeepingTask(estateId, actorUserId, { unitId: reservation.unitId });
+  }
 
   return updated;
 }
