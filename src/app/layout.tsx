@@ -22,11 +22,13 @@ export const metadata: Metadata = {
     description: BRAND.description,
     url: BRAND.url,
     siteName: BRAND.name,
+    images: ["/logo-icon.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: `${BRAND.name} | Community Management Platform`,
     description: BRAND.description,
+    images: ["/logo-icon.png"],
   },
 };
 
