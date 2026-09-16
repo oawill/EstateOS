@@ -5,8 +5,10 @@ import { usePathname } from "next/navigation";
 
 const NAV = [
   { href: "/dashboard/shortlets", label: "Overview" },
-  { href: "/dashboard/shortlets/listings", label: "Listings" },
+  { href: "/dashboard/shortlets/calendar", label: "Calendar" },
   { href: "/dashboard/shortlets/bookings", label: "Bookings" },
+  { href: "/dashboard/shortlets/listings", label: "Properties" },
+  { href: "/dashboard/shortlets/revenue", label: "Revenue" },
 ];
 
 export function ShortletDashboardNav() {

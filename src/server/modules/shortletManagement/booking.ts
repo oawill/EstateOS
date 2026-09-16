@@ -221,6 +221,18 @@ export async function cancelBooking(actor: CurrentUser, bookingId: string, reaso
   return updated;
 }
 
+export async function listBookingsForListing(actor: CurrentUser, listingId: string) {
+  const listing = await prisma.shortletListing.findUnique({ where: { id: listingId } });
+  if (!listing) throw new NotFoundError("Listing");
+  await assertPropertyAccess(actor, listing.propertyId);
+
+  return prisma.shortletBooking.findMany({
+    where: { listingId },
+    include: { guest: true },
+    orderBy: { checkInDate: "desc" },
+  });
+}
+
 export async function listAccessibleBookings(user: CurrentUser) {
   const propertyIds = await getAuthorizedPropertyIds(user);
   return prisma.shortletBooking.findMany({

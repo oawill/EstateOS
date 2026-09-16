@@ -85,3 +85,58 @@ body {
     animation: none;
   }
 }
+
+/*
+ * Shortlet Management's warm hospitality palette — scoped under
+ * .shortlet-scope (wrapped around the module's dashboard layout) rather
+ * than redefined at :root, so Estate Management and Tenant Management
+ * keep their existing charcoal/red identity untouched. Every shared
+ * component (Card, Button, Badge, etc.) already reads these same
+ * --color-* custom properties, so wrapping the module root in this class
+ * re-skins them automatically without forking a second component library.
+ */
+.shortlet-scope {
+  --color-navy: #2a1f16;
+  --color-navy-deep: #1c140d;
+  --color-navy-light: #3d2e20;
+
+  --color-primary: #c1622f;
+  --color-primary-hover: #9c4e25;
+  --color-primary-light: #d9824f;
+
+  --color-success: #227a5b;
+  --color-warning: #c17f14;
+  --color-danger: #b3402e;
+  --color-danger-hover: #93321f;
+  --color-info: #2f6f6b;
+
+  --color-background: #faf6f0;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f4ece2;
+  --color-border: #e9dfd0;
+  --color-foreground: #2a2118;
+  --color-foreground-muted: #7a6e5e;
+
+  background-color: var(--color-background);
+}
+
+@keyframes shortlet-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.shortlet-scope .animate-rise {
+  animation: shortlet-fade-up 260ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shortlet-scope .animate-rise {
+    animation: none;
+  }
+}
