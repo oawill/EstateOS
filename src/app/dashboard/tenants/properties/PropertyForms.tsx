@@ -6,6 +6,7 @@ import {
   createPropertyAction,
   createUnitAction,
   assignPropertyManagerAction,
+  assignShortletOperatorAction,
   type ActionState,
 } from "../actions";
 
@@ -147,6 +148,25 @@ export function AssignManagerForm({ propertyId }: { propertyId: string }) {
       </div>
       <Button type="submit" variant="secondary" disabled={pending}>
         {pending ? "Assigning…" : "Assign Manager"}
+      </Button>
+    </form>
+  );
+}
+
+/** Grants a Shortlet Management operator access to run shortlet operations on this property — an entirely separate module and separate grant from the Tenant Management manager above. */
+export function AssignShortletOperatorForm({ propertyId }: { propertyId: string }) {
+  const [state, formAction, pending] = useActionState(assignShortletOperatorAction, initialState);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      <FormError message={state.error} />
+      <input type="hidden" name="propertyId" value={propertyId} />
+      <div className="flex-1">
+        <Label htmlFor={`op-${propertyId}`}>Shortlet operator&apos;s email</Label>
+        <Input id={`op-${propertyId}`} name="operatorEmail" type="email" required placeholder="operator@example.com" />
+      </div>
+      <Button type="submit" variant="secondary" disabled={pending}>
+        {pending ? "Assigning…" : "Assign Shortlet Operator"}
       </Button>
     </form>
   );

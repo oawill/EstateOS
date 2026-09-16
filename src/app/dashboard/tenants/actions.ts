@@ -32,6 +32,8 @@ import { createPropertyInspection } from "@/server/modules/tenantManagement/insp
 import { createTenantCharge } from "@/server/modules/tenantManagement/charges";
 import { upsertManagementAgreement, generateLandlordSettlement, updateSettlementStatus } from "@/server/modules/tenantManagement/managementFee";
 import { updateReminderSetting, runReminderSweep } from "@/server/modules/tenantManagement/reminders";
+import { assignOperatorSchema } from "@/server/modules/shortletManagement/schema";
+import { assignShortletOperator } from "@/server/modules/shortletManagement/operator";
 import type { RentalMaintenanceStatus, MoveInStage, MoveOutStage } from "@prisma/client";
 
 export interface ActionState {
@@ -512,6 +514,24 @@ export async function assignPropertyManagerAction(_prev: ActionState, formData: 
 
   try {
     await assignPropertyManager(user, parsed.data.propertyId, parsed.data.userEmail);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/properties");
+  return {};
+}
+
+/** Grants a Shortlet Management operator (a separate module — see src/server/modules/shortletManagement) access to run shortlet operations on this property. Only the property's own owner can grant it. */
+export async function assignShortletOperatorAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = assignOperatorSchema.safeParse({
+    propertyId: formData.get("propertyId"),
+    operatorEmail: formData.get("operatorEmail"),
+  });
+  if (!parsed.success) return { error: "Please enter a valid email address." };
+
+  try {
+    await assignShortletOperator(user, parsed.data);
   } catch (error) {
     return formError(error);
   }

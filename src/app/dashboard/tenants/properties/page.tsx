@@ -4,7 +4,7 @@ import { requireUser } from "@/server/auth/session";
 import { getAccessibleContext } from "@/server/modules/tenantManagement/access";
 import { listAccessibleProperties } from "@/server/modules/tenantManagement/property";
 import { formatNaira } from "@/lib/utils";
-import { CreatePropertyForm, CreateUnitForm, AssignManagerForm } from "./PropertyForms";
+import { CreatePropertyForm, CreateUnitForm, AssignManagerForm, AssignShortletOperatorForm } from "./PropertyForms";
 
 export default async function PropertiesPage() {
   const ctx = await guardPage(async () => getAccessibleContext(await requireUser()));
@@ -68,8 +68,9 @@ export default async function PropertiesPage() {
             </div>
 
             {ctx.ownerId === property.ownerId && (
-              <div className="mt-4 border-t border-border pt-4">
+              <div className="mt-4 space-y-3 border-t border-border pt-4">
                 <AssignManagerForm propertyId={property.id} />
+                <AssignShortletOperatorForm propertyId={property.id} />
               </div>
             )}
           </Card>

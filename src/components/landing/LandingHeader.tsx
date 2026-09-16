@@ -8,7 +8,7 @@ const NAV_LINKS = [
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How It Works" },
   { href: "/tenant-management", label: "Tenant Management" },
-  { href: "#shortlet", label: "Shortlet" },
+  { href: "/shortlets", label: "Shortlet Management" },
   { href: "/security", label: "Security" },
 ];
 
