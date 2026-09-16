@@ -17,8 +17,8 @@ export function ShortletPromo() {
               kept separate from standard community management.
             </p>
             <div className="mt-6">
-              <Link href="/request-demo">
-                <Button type="button">Explore Shortlet</Button>
+              <Link href="/shortlet-management">
+                <Button type="button">Explore Shortlet Management</Button>
               </Link>
             </div>
           </div>
