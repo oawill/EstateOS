@@ -4,11 +4,13 @@ import { guardPage } from "@/server/auth/pageGuard";
 import { requireUser } from "@/server/auth/session";
 import { requireTenantSelf } from "@/server/modules/tenantManagement/access";
 import { getTenantPortalData } from "@/server/modules/tenantManagement/tenant";
+import { isPaystackConfigured } from "@/server/modules/tenantManagement/paystack";
 import { formatNaira, formatDate } from "@/lib/utils";
+import { PayRentForm } from "./PayRentForm";
 
 export default async function TenantPortalPage() {
   const { tenantId } = await guardPage(async () => requireTenantSelf(await requireUser()));
-  const { tenant, currentLease, nextObligation, outstandingMinor } = await getTenantPortalData(tenantId);
+  const { tenant, currentLease, nextObligation, outstandingMinor, creditMinor, overdueMinor, payments } = await getTenantPortalData(tenantId);
 
   const openMaintenance = tenant.maintenanceRequests.filter((r) => r.status !== "COMPLETED" && r.status !== "CLOSED");
 
@@ -35,17 +37,38 @@ export default async function TenantPortalPage() {
       <Card>
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">Rent</p>
-          <Badge tone={outstandingMinor > 0 ? "warning" : "success"}>{outstandingMinor > 0 ? "Balance due" : "Up to date"}</Badge>
+          <Badge tone={creditMinor > 0 ? "info" : outstandingMinor > 0 ? "warning" : "success"}>
+            {creditMinor > 0 ? "Account credit" : outstandingMinor > 0 ? "Balance due" : "Up to date"}
+          </Badge>
         </div>
-        <p className={`mt-2 text-2xl font-semibold ${outstandingMinor > 0 ? "text-warning" : "text-success"}`}>
-          {formatNaira(outstandingMinor)}
-        </p>
-        {nextObligation && (
-          <p className="text-xs text-foreground-muted">Next due {formatDate(nextObligation.dueDate)}</p>
+        {creditMinor > 0 ? (
+          <>
+            <p className="mt-2 text-2xl font-semibold text-info">{formatNaira(creditMinor)}</p>
+            <p className="text-xs text-foreground-muted">
+              You&apos;ve paid ahead — this credit will automatically apply to your next rent due.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className={`mt-2 text-2xl font-semibold ${outstandingMinor > 0 ? "text-warning" : "text-success"}`}>
+              {formatNaira(outstandingMinor)}
+            </p>
+            {overdueMinor > 0 && <p className="text-xs font-medium text-danger">{formatNaira(overdueMinor)} overdue</p>}
+          </>
         )}
-        <p className="mt-3 text-xs text-foreground-muted">
-          Manual bank transfer / cash payments recorded by your landlord or manager will appear here automatically.
-        </p>
+        {nextObligation && <p className="mt-1 text-xs text-foreground-muted">Next due {formatDate(nextObligation.dueDate)}</p>}
+
+        {nextObligation && nextObligation.amountDueMinor > nextObligation.amountPaidMinor && (
+          <div className="mt-4 border-t border-border pt-4">
+            {isPaystackConfigured() ? (
+              <PayRentForm obligationId={nextObligation.id} outstandingMinor={nextObligation.amountDueMinor - nextObligation.amountPaidMinor} />
+            ) : (
+              <p className="text-xs text-foreground-muted">
+                Online payment isn&apos;t set up yet — pay by bank transfer or cash and your property manager will record it here.
+              </p>
+            )}
+          </div>
+        )}
       </Card>
 
       {currentLease && (
@@ -88,6 +111,44 @@ export default async function TenantPortalPage() {
             ))}
           </ul>
         )}
+      </Card>
+
+      <Card>
+        <p className="text-sm font-medium">Payment History</p>
+        {payments.length === 0 ? (
+          <p className="mt-2 text-sm text-foreground-muted">No payments recorded yet.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-border">
+            {payments.map((p) => (
+              <li key={p.id} className="flex items-center justify-between py-2 text-sm">
+                <div>
+                  <p>{formatDate(p.paidAt)}</p>
+                  <p className="text-xs text-foreground-muted">
+                    {p.method.replaceAll("_", " ")}
+                    {p.status === "REVERSED" ? " · reversed" : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={p.status === "REVERSED" ? "text-foreground-muted line-through" : "font-medium"}>
+                    {formatNaira(p.amountMinor)}
+                  </span>
+                  <Link href={`/tenant/receipts/${p.id}`} className="text-xs font-medium text-primary hover:underline">
+                    Receipt
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
+        <p className="text-sm font-medium">Contact Property Manager</p>
+        <p className="mt-2 text-sm text-foreground-muted">
+          {tenant.unit
+            ? `${tenant.unit.property.owner.name}${tenant.unit.property.owner.phone ? ` · ${tenant.unit.property.owner.phone}` : ""}${tenant.unit.property.owner.email ? ` · ${tenant.unit.property.owner.email}` : ""}`
+            : "No property manager on file yet."}
+        </p>
       </Card>
 
       <Card>

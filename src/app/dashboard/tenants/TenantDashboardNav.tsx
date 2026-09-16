@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const NAV = [
   { href: "/dashboard/tenants", label: "Overview" },
   { href: "/dashboard/tenants/properties", label: "Properties" },
+  { href: "/dashboard/tenants/leasing", label: "Leasing" },
   { href: "/dashboard/tenants/tenants", label: "Tenants" },
   { href: "/dashboard/tenants/leases", label: "Leases" },
   { href: "/dashboard/tenants/payments", label: "Rent & Arrears" },
@@ -13,6 +14,10 @@ const NAV = [
   { href: "/dashboard/tenants/move-in", label: "Move-In" },
   { href: "/dashboard/tenants/move-out", label: "Move-Out" },
   { href: "/dashboard/tenants/inspections", label: "Inspections" },
+  { href: "/dashboard/tenants/charges", label: "Charges" },
+  { href: "/dashboard/tenants/settlements", label: "Settlements" },
+  { href: "/dashboard/tenants/reminders", label: "Reminders" },
+  { href: "/dashboard/tenants/reconciliation", label: "Reconciliation" },
 ];
 
 export function TenantDashboardNav() {

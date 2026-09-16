@@ -19,6 +19,32 @@ import type { CurrentUser } from "@/server/auth/session";
  * request/cookie context.
  */
 
+/**
+ * The PropertyOwner fields safe to include in any list/detail view reached
+ * by someone other than the owner themselves (other landlords' tenants,
+ * property managers, platform admins browsing the directory) — deliberately
+ * excludes payoutBankName/payoutAccountNumber/payoutAccountName/
+ * payoutDetailsUpdatedAt. Those only ever come back from
+ * getPayoutDetails() in property.ts, which checks the caller is the owner
+ * themselves or a platform admin. Use `owner: { select: PROPERTY_OWNER_SAFE_SELECT }`
+ * instead of `owner: true` everywhere in this module.
+ */
+export const PROPERTY_OWNER_SAFE_SELECT = {
+  id: true,
+  userId: true,
+  name: true,
+  email: true,
+  phone: true,
+  whatsapp: true,
+  countryOfResidence: true,
+  preferredTimezone: true,
+  preferredCurrency: true,
+  preferredCommunicationMethod: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 export async function requirePropertyOwner(user: CurrentUser): Promise<{ user: CurrentUser; ownerId: string }> {
   const owner = await prisma.propertyOwner.findUnique({ where: { userId: user.id } });
   if (!owner) throw new NotFoundError("Landlord profile");

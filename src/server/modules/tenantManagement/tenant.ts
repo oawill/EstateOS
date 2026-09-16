@@ -2,7 +2,8 @@ import { prisma } from "@/server/db/client";
 import { NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import type { CurrentUser } from "@/server/auth/session";
-import { getAuthorizedPropertyIds, getAccessibleContext, requirePropertyOwner } from "./access";
+import { getAuthorizedPropertyIds, getAccessibleContext, requirePropertyOwner, PROPERTY_OWNER_SAFE_SELECT } from "./access";
+import { getTenantBalance } from "./payments";
 import type { CreateTenantInput } from "./schema";
 
 /** Only a landlord (not a bare property manager) can add a brand-new tenant — a tenant has no unit yet, so createdByOwnerId is the only thing that scopes it to a portfolio until a lease assigns it a unit. */
@@ -55,12 +56,18 @@ export async function listAccessibleTenants(actor: CurrentUser) {
   });
 }
 
-/** Everything the /tenant self-service portal needs for the signed-in tenant's own record — never takes a client-supplied tenantId. */
+/**
+ * Everything the /tenant self-service portal needs for the signed-in
+ * tenant's own record — never takes a client-supplied tenantId. The
+ * balance figures (outstanding/overdue/credit) delegate to
+ * getTenantBalance() in payments.ts so the portal and any other surface
+ * reading a tenant's ledger always agree on the same numbers.
+ */
 export async function getTenantPortalData(tenantId: string) {
   const tenant = await prisma.tenant.findUniqueOrThrow({
     where: { id: tenantId },
     include: {
-      unit: { include: { property: { include: { owner: true } } } },
+      unit: { include: { property: { include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT } } } } },
       leases: { orderBy: { createdAt: "desc" }, take: 1, include: { obligations: { orderBy: { dueDate: "asc" } } } },
       documents: true,
       maintenanceRequests: { orderBy: { createdAt: "desc" } },
@@ -68,17 +75,18 @@ export async function getTenantPortalData(tenantId: string) {
   });
 
   const currentLease = tenant.leases[0] ?? null;
-  const payments = currentLease
-    ? await prisma.rentPayment.findMany({ where: { leaseId: currentLease.id }, orderBy: { paidAt: "desc" } })
-    : [];
+  const balance = await getTenantBalance(tenantId);
 
-  const nextObligation = currentLease?.obligations.find((o) => o.status !== "PAID" && o.status !== "WAIVED") ?? null;
-  const outstandingMinor = (currentLease?.obligations ?? []).reduce(
-    (sum, o) => sum + Math.max(o.amountDueMinor - o.amountPaidMinor, 0),
-    0,
-  );
-
-  return { tenant, currentLease, payments, nextObligation, outstandingMinor };
+  return {
+    tenant,
+    currentLease,
+    payments: balance.recentPayments,
+    nextObligation: balance.nextObligation,
+    outstandingMinor: balance.currentBalanceMinor,
+    creditMinor: balance.creditMinor,
+    overdueMinor: balance.overdueMinor,
+    upcomingObligations: balance.upcomingObligations,
+  };
 }
 
 export async function getTenantDetail(actor: CurrentUser, tenantId: string) {

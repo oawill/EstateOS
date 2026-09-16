@@ -2,8 +2,74 @@ import { prisma } from "@/server/db/client";
 import { NotFoundError, ForbiddenError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import type { CurrentUser } from "@/server/auth/session";
-import { requirePropertyOwner, assertPropertyAccess, getAuthorizedPropertyIds } from "./access";
-import type { CreatePropertyOwnerInput, CreateManagedPropertyInput, CreateRentalUnitInput } from "./schema";
+import { requirePropertyOwner, assertPropertyAccess, getAuthorizedPropertyIds, PROPERTY_OWNER_SAFE_SELECT } from "./access";
+import type {
+  CreatePropertyOwnerInput,
+  CreateManagedPropertyInput,
+  CreateRentalUnitInput,
+  UpdatePayoutDetailsInput,
+  UpdateApprovalPolicyInput,
+} from "./schema";
+
+/**
+ * Payout/bank details are the most sensitive field group on PropertyOwner
+ * — see the schema comment on PropertyOwner.payoutBankName. Only the
+ * owner themselves or a platform admin may ever read or write them; every
+ * other query in this module goes through PROPERTY_OWNER_SAFE_SELECT
+ * instead, which excludes these fields entirely.
+ */
+export async function getPayoutDetails(actor: CurrentUser, ownerId: string) {
+  if (!actor.isPlatformAdmin) {
+    const { ownerId: callerOwnerId } = await requirePropertyOwner(actor);
+    if (callerOwnerId !== ownerId) throw new ForbiddenError();
+  }
+
+  const owner = await prisma.propertyOwner.findUnique({
+    where: { id: ownerId },
+    select: { payoutBankName: true, payoutAccountNumber: true, payoutAccountName: true, payoutDetailsUpdatedAt: true },
+  });
+  if (!owner) throw new NotFoundError("Landlord");
+  return owner;
+}
+
+export async function updatePayoutDetails(actor: CurrentUser, ownerId: string, input: UpdatePayoutDetailsInput) {
+  if (!actor.isPlatformAdmin) {
+    const { ownerId: callerOwnerId } = await requirePropertyOwner(actor);
+    if (callerOwnerId !== ownerId) throw new ForbiddenError();
+  }
+
+  const before = await prisma.propertyOwner.findUnique({
+    where: { id: ownerId },
+    select: { payoutBankName: true, payoutAccountNumber: true, payoutAccountName: true },
+  });
+  if (!before) throw new NotFoundError("Landlord");
+
+  const updated = await prisma.propertyOwner.update({
+    where: { id: ownerId },
+    data: {
+      payoutBankName: input.payoutBankName,
+      payoutAccountNumber: input.payoutAccountNumber,
+      payoutAccountName: input.payoutAccountName,
+      payoutDetailsUpdatedAt: new Date(),
+    },
+    select: { payoutBankName: true, payoutAccountNumber: true, payoutAccountName: true, payoutDetailsUpdatedAt: true },
+  });
+
+  // Never log the actual bank details in the audit trail's before/after —
+  // only that a change happened, by whom, and when. The values themselves
+  // stay in PropertyOwner, readable only through getPayoutDetails() above.
+  await recordAudit({
+    estateId: null,
+    actorUserId: actor.id,
+    action: "tenant_management.payout_details.changed",
+    entityType: "PropertyOwner",
+    entityId: ownerId,
+    before: { payoutAccountNumberLast4: before.payoutAccountNumber?.slice(-4) ?? null },
+    after: { payoutAccountNumberLast4: updated.payoutAccountNumber?.slice(-4) ?? null },
+  });
+
+  return updated;
+}
 
 /** Creates (or returns) the PropertyOwner profile for the current user — one landlord profile per User. */
 export async function createOrGetOwnProfile(userId: string, input: CreatePropertyOwnerInput) {
@@ -89,7 +155,7 @@ export async function listAccessibleProperties(actor: CurrentUser) {
   return prisma.managedProperty.findMany({
     where: authorized === "all" ? undefined : { id: { in: authorized } },
     include: {
-      owner: true,
+      owner: { select: PROPERTY_OWNER_SAFE_SELECT },
       units: { include: { tenants: { where: { status: "ACTIVE" } } } },
     },
     orderBy: { createdAt: "desc" },
@@ -135,12 +201,33 @@ export async function listVacantUnits(actor: CurrentUser) {
   });
 }
 
+/** Gates whether a manager can approve a rental application outright, or must route the decision to the owner. */
+export async function updateApprovalPolicy(actor: CurrentUser, input: UpdateApprovalPolicyInput) {
+  await assertPropertyAccess(actor, input.propertyId);
+
+  const updated = await prisma.managedProperty.update({
+    where: { id: input.propertyId },
+    data: { approvalPolicy: input.approvalPolicy },
+  });
+
+  await recordAudit({
+    estateId: null,
+    actorUserId: actor.id,
+    action: "tenant_management.property.approval_policy_updated",
+    entityType: "ManagedProperty",
+    entityId: input.propertyId,
+    after: updated,
+  });
+
+  return updated;
+}
+
 export async function getPropertyDetail(actor: CurrentUser, propertyId: string) {
   await assertPropertyAccess(actor, propertyId);
   const property = await prisma.managedProperty.findUnique({
     where: { id: propertyId },
     include: {
-      owner: true,
+      owner: { select: PROPERTY_OWNER_SAFE_SELECT },
       units: {
         include: {
           tenants: true,

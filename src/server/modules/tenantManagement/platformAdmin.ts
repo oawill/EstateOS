@@ -1,5 +1,6 @@
 import { LeaseStatus, RentalMaintenanceStatus } from "@prisma/client";
 import { prisma } from "@/server/db/client";
+import { PROPERTY_OWNER_SAFE_SELECT } from "./access";
 
 /**
  * Deliberately the only module allowed to query Tenant Management data
@@ -29,7 +30,7 @@ export async function searchProperties(query?: string) {
           ],
         }
       : undefined,
-    include: { owner: true, _count: { select: { units: true, managers: true } } },
+    include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT }, _count: { select: { units: true, managers: true } } },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -45,7 +46,7 @@ export async function searchTenants(query?: string) {
           ],
         }
       : undefined,
-    include: { unit: { include: { property: { include: { owner: true } } } } },
+    include: { unit: { include: { property: { include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT } } } } } },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
@@ -65,7 +66,7 @@ export async function searchLeases(status?: LeaseStatus, query?: string) {
           }
         : {}),
     },
-    include: { tenant: true, unit: { include: { property: { include: { owner: true } } } } },
+    include: { tenant: true, unit: { include: { property: { include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT } } } } } },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
@@ -82,7 +83,7 @@ export async function searchPayments(query?: string) {
           ],
         }
       : undefined,
-    include: { tenant: true, lease: { include: { unit: { include: { property: { include: { owner: true } } } } } } },
+    include: { tenant: true, lease: { include: { unit: { include: { property: { include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT } } } } } } } },
     orderBy: { paidAt: "desc" },
     take: 200,
   });
@@ -91,7 +92,7 @@ export async function searchPayments(query?: string) {
 export async function searchMaintenanceRequests(status?: RentalMaintenanceStatus) {
   return prisma.maintenanceRequest.findMany({
     where: { status },
-    include: { property: { include: { owner: true } }, unit: true, tenant: true, expenses: true },
+    include: { property: { include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT } } }, unit: true, tenant: true, expenses: true },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
@@ -99,14 +100,14 @@ export async function searchMaintenanceRequests(status?: RentalMaintenanceStatus
 
 export async function listPropertyManagerAssignments() {
   return prisma.propertyManager.findMany({
-    include: { property: { include: { owner: true } }, user: true },
+    include: { property: { include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT } } }, user: true },
     orderBy: { createdAt: "desc" },
   });
 }
 
 export async function listAllLandlordStatements() {
   return prisma.landlordStatement.findMany({
-    include: { owner: true, property: true },
+    include: { owner: { select: PROPERTY_OWNER_SAFE_SELECT }, property: true },
     orderBy: [{ periodYear: "desc" }, { periodMonth: "desc" }],
     take: 200,
   });

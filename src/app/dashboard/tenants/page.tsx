@@ -56,6 +56,8 @@ export default async function TenantManagementOverviewPage() {
         <KpiCard label="Outstanding rent" value={formatNaira(kpis.outstandingRentMinor)} tone="warning" />
         <KpiCard label="Overdue obligations" value={kpis.overdueObligationCount} tone="danger" />
         <KpiCard label="Open maintenance" value={kpis.openMaintenanceCount} tone="warning" />
+        <KpiCard label="Collection rate (month)" value={`${kpis.collectionRate}%`} />
+        <KpiCard label="Management fees earned" value={formatNaira(kpis.managementFeesEarnedMinor)} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -128,6 +130,16 @@ export default async function TenantManagementOverviewPage() {
         <Link href="/dashboard/tenants/move-out">
           <Button variant="secondary" className="w-full">
             Move-Out
+          </Button>
+        </Link>
+        <Link href="/dashboard/tenants/charges">
+          <Button variant="secondary" className="w-full">
+            Charges
+          </Button>
+        </Link>
+        <Link href="/dashboard/tenants/settlements">
+          <Button variant="secondary" className="w-full">
+            Settlements
           </Button>
         </Link>
       </div>

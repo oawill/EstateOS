@@ -433,6 +433,7 @@ model User {
   propertyOwnerProfile       PropertyOwner?
   tenantProfile              Tenant?
   managedPropertyAssignments PropertyManager[]
+  rentalApplicantProfile     RentalApplicant?
 }
 
 // Only the SHA-256 hash of the raw token is ever stored — the raw,
@@ -1876,6 +1877,11 @@ enum RentFrequency {
   QUARTERLY
   SEMI_ANNUAL
   ANNUAL
+  // No fixed step — the billing engine bills the whole lease term as one
+  // obligation rather than guessing a period length. A true irregular
+  // schedule (e.g. specific one-off dates) would need its own input UI;
+  // out of scope for this phase.
+  CUSTOM
 }
 
 enum TenantStatus {
@@ -1903,6 +1909,7 @@ enum RentObligationStatus {
   PAID
   OVERDUE
   WAIVED
+  CANCELLED
 }
 
 enum RentPaymentMethod {
@@ -1911,7 +1918,77 @@ enum RentPaymentMethod {
   CASH
   POS
   ONLINE_PAYMENT
+  CHEQUE
   OTHER
+}
+
+// COMPLETED payments are the only ones that count as money received.
+// PENDING exists only for an online payment between "checkout started" and
+// "webhook confirmed" — it must never move an obligation's amountPaidMinor.
+// REVERSED payments keep their row (never deleted) with reversal metadata;
+// see reversePayment() in payments.ts for why deletion is never an option
+// for financial records.
+enum RentPaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  ABANDONED
+  REVERSED
+}
+
+// Non-rent items billed to a tenant. Deliberately separate from
+// RentObligation (which stays rent-only, since it drives lease/occupancy
+// logic) — a TenantCharge is a simpler, standalone billable line item that
+// a Payment can also allocate against via PaymentAllocation. Prefixed
+// Rental*/TenantCharge to avoid colliding with the existing Estate
+// Management Charge/ChargeType (service-charge billing), same convention
+// as RentalMaintenanceCategory vs MaintenanceCategory.
+enum RentalChargeType {
+  SERVICE_CHARGE
+  SECURITY_DEPOSIT
+  UTILITY
+  MAINTENANCE
+  LATE_FEE
+  OTHER
+}
+
+enum RentalChargeStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  WAIVED
+  CANCELLED
+}
+
+enum ManagementFeeType {
+  PERCENTAGE
+  FIXED_MONTHLY
+  FIXED_ANNUAL
+  CUSTOM
+}
+
+enum LandlordSettlementStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+// Which side of the due date a reminder offset counts from — paired with
+// an arbitrary `offsetDays` (not a fixed enum of milestones) so a
+// landlord's custom day counts work the same way the presets do. See
+// RentReminderSetting/RentReminderLog.
+enum ReminderDirection {
+  BEFORE_DUE
+  AFTER_DUE
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
 }
 
 // Prefixed Rental* to avoid colliding with the existing estate-maintenance
@@ -1979,41 +2056,58 @@ enum MoveOutStage {
 // (userId is nullable so a manager can create an owner record before the
 // owner ever signs up, e.g. for a diaspora landlord who'll log in later).
 model PropertyOwner {
-  id                           String   @id @default(cuid())
-  userId                       String?  @unique
+  id                           String    @id @default(cuid())
+  userId                       String?   @unique
   name                         String
   email                        String?
   phone                        String?
   whatsapp                     String?
   countryOfResidence           String?
-  preferredCurrency            String   @default("NGN")
+  preferredTimezone            String?
+  preferredCurrency            String    @default("NGN")
   preferredCommunicationMethod String?
   notes                        String?
-  createdAt                    DateTime @default(now())
-  updatedAt                    DateTime @updatedAt
+  // Payout/bank details are sensitive — deliberately plain nullable fields
+  // (no separate "vault" table for this phase) but every read/write path
+  // must go through getPayoutDetails()/updatePayoutDetails() in
+  // property.ts, which restrict access to the owner themselves or a
+  // platform admin and audit every change. Never included in the general
+  // PropertyOwner queries used by listAccessibleProperties/searchLandlords.
+  payoutBankName               String?
+  payoutAccountNumber          String?
+  payoutAccountName            String?
+  payoutDetailsUpdatedAt       DateTime?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
 
-  user           User?               @relation(fields: [userId], references: [id])
-  properties     ManagedProperty[]
-  documents      TenantDocument[]
-  statements     LandlordStatement[]
-  createdTenants Tenant[]
+  user            User?                @relation(fields: [userId], references: [id])
+  properties      ManagedProperty[]
+  documents       TenantDocument[]
+  statements      LandlordStatement[]
+  createdTenants  Tenant[]
+  settlements     LandlordSettlement[]
+  reminderSetting RentReminderSetting?
 
   @@index([userId])
 }
 
 model ManagedProperty {
-  id           String             @id @default(cuid())
-  ownerId      String
-  name         String
-  addressLine  String
-  city         String
-  state        String?
-  country      String             @default("NG")
-  propertyType RentalPropertyType
-  imageUrls    String[]           @default([])
-  notes        String?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  id             String                 @id @default(cuid())
+  ownerId        String
+  name           String
+  addressLine    String
+  city           String
+  state          String?
+  country        String                 @default("NG")
+  propertyType   RentalPropertyType
+  imageUrls      String[]               @default([])
+  notes          String?
+  // Gates whether an assigned manager can approve/reject/counter a rental
+  // application outright, or must route the decision to the owner (see
+  // ApplicationDecision and the leasing dashboard's owner-approval queue).
+  approvalPolicy PropertyApprovalPolicy @default(MANAGER_CAN_APPROVE)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
 
   owner               PropertyOwner        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   units               RentalUnit[]
@@ -2021,6 +2115,10 @@ model ManagedProperty {
   inspections         PropertyInspection[]
   maintenanceRequests MaintenanceRequest[]
   statements          LandlordStatement[]
+  charges             TenantCharge[]
+  managementAgreement ManagementAgreement?
+  settlements         LandlordSettlement[]
+  listings            RentalListing[]
 
   @@index([ownerId])
 }
@@ -2064,6 +2162,11 @@ model RentalUnit {
   maintenanceRequests MaintenanceRequest[]
   moveIns             MoveIn[]
   moveOuts            MoveOut[]
+  charges             TenantCharge[]
+  listings            RentalListing[]
+  viewings            Viewing[]
+  reservations        UnitReservation[]
+  offers              RentalOffer[]
 
   @@index([propertyId])
 }
@@ -2099,6 +2202,7 @@ model Tenant {
   leases              Lease[]
   documents           TenantDocument[]
   payments            RentPayment[]
+  charges             TenantCharge[]
   maintenanceRequests MaintenanceRequest[]
   moveIns             MoveIn[]
   moveOuts            MoveOut[]
@@ -2109,34 +2213,43 @@ model Tenant {
 }
 
 model Lease {
-  id                   String        @id @default(cuid())
-  leaseCode            String        @unique
+  id                   String              @id @default(cuid())
+  leaseCode            String              @unique
   tenantId             String
   unitId               String
   startDate            DateTime
   endDate              DateTime
   rentAmountMinor      Int
   paymentFrequency     RentFrequency
-  securityDepositMinor Int           @default(0)
-  serviceChargeMinor   Int           @default(0)
+  securityDepositMinor Int                 @default(0)
+  serviceChargeMinor   Int                 @default(0)
   // Day-of-period rent is due (e.g. 1 = due on the 1st of each period).
-  rentDueDay           Int           @default(1)
-  gracePeriodDays      Int           @default(0)
+  rentDueDay           Int                 @default(1)
+  gracePeriodDays      Int                 @default(0)
   renewalTerms         String?
   documentUrl          String?
-  status               LeaseStatus   @default(DRAFT)
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  status               LeaseStatus         @default(DRAFT)
+  // The signing workflow, distinct from status above (which tracks
+  // occupancy) — a lease can be DRAFT (occupancy) while its document is
+  // already SIGNED, the moment before move-in flips occupancy to ACTIVE.
+  documentStatus       LeaseDocumentStatus @default(DRAFT)
+  signatureProvider    SignatureProvider?
+  sentToTenantAt       DateTime?
+  signedAt             DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   tenant             Tenant           @relation(fields: [tenantId], references: [id])
   unit               RentalUnit       @relation(fields: [unitId], references: [id])
   obligations        RentObligation[]
   payments           RentPayment[]
+  charges            TenantCharge[]
   documents          TenantDocument[]
   moveIns            MoveIn[]
   moveOuts           MoveOut[]
   renewalsAsPrevious LeaseRenewal[]   @relation("RenewalPrevious")
   renewalAsNew       LeaseRenewal?    @relation("RenewalNew")
+  offer              RentalOffer?
 
   @@index([tenantId])
   @@index([unitId])
@@ -2164,49 +2277,81 @@ model LeaseRenewal {
 // arrears tracking correct instead of a single "is this period paid"
 // boolean on the lease.
 model RentObligation {
-  id              String               @id @default(cuid())
-  leaseId         String
-  periodStart     DateTime
-  periodEnd       DateTime
-  dueDate         DateTime
-  amountDueMinor  Int
-  amountPaidMinor Int                  @default(0)
-  status          RentObligationStatus @default(UPCOMING)
-  notes           String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id                  String               @id @default(cuid())
+  leaseId             String
+  periodStart         DateTime
+  periodEnd           DateTime
+  dueDate             DateTime
+  // The amount as originally billed — never mutated once created, even
+  // when a waiver or correction changes what's actually owed. amountDueMinor
+  // stays the operative "what's owed now" figure (originalAmountMinor +
+  // adjustmentsMinor) so every existing read site keeps working unchanged;
+  // originalAmountMinor exists purely so a landlord can always see what an
+  // adjustment was measured against.
+  originalAmountMinor Int
+  adjustmentsMinor    Int                  @default(0)
+  amountDueMinor      Int
+  amountPaidMinor     Int                  @default(0)
+  status              RentObligationStatus @default(UPCOMING)
+  notes               String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
-  lease    Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
-  payments RentPayment[]
+  lease        Lease               @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  payments     RentPayment[]
+  allocations  PaymentAllocation[]
+  reminderLogs RentReminderLog[]
 
   @@index([leaseId])
   @@index([status])
 }
 
 model RentPayment {
-  id               String            @id @default(cuid())
-  referenceNumber  String            @unique
-  tenantId         String
-  leaseId          String
-  obligationId     String?
-  amountMinor      Int
-  paidAt           DateTime          @default(now())
-  method           RentPaymentMethod
-  transactionRef   String?
-  recordedByUserId String?
-  notes            String?
-  createdAt        DateTime          @default(now())
+  id                String            @id @default(cuid())
+  referenceNumber   String            @unique
+  tenantId          String
+  leaseId           String
+  // Legacy single-obligation pointer — kept so every existing query that
+  // reads `obligationId` directly keeps working unchanged. The source of
+  // truth for what a payment actually covers (which can now be more than
+  // one obligation and/or Charge) is the `allocations` relation below;
+  // this field is always kept equal to the first/primary allocation's
+  // obligation for a rent-only payment.
+  obligationId      String?
+  amountMinor       Int
+  paidAt            DateTime          @default(now())
+  method            RentPaymentMethod
+  transactionRef    String?
+  // Paystack's own transaction reference — unique across the whole table
+  // (unlike transactionRef, which is a free-text field for manual payments
+  // and can't be assumed unique). This is what the webhook looks up by,
+  // and initializing a duplicate reference is rejected before Paystack is
+  // ever called.
+  gatewayReference  String?           @unique
+  status            RentPaymentStatus @default(COMPLETED)
+  recordedByUserId  String?
+  notes             String?
+  proofOfPaymentUrl String?
+  reversedAt        DateTime?
+  reversedByUserId  String?
+  reversalReason    String?
+  createdAt         DateTime          @default(now())
 
-  tenant     Tenant          @relation(fields: [tenantId], references: [id])
-  lease      Lease           @relation(fields: [leaseId], references: [id])
-  obligation RentObligation? @relation(fields: [obligationId], references: [id])
-  receipt    RentReceipt?
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  lease       Lease               @relation(fields: [leaseId], references: [id])
+  obligation  RentObligation?     @relation(fields: [obligationId], references: [id])
+  receipt     RentReceipt?
+  allocations PaymentAllocation[]
 
   @@index([tenantId])
   @@index([leaseId])
   @@index([obligationId])
+  @@index([status])
 }
 
+// Immutable once issued — a correction never edits a receipt's numbers,
+// it goes through reversePayment() instead, which creates its own
+// reversal trail without touching this row. See payments.ts.
 model RentReceipt {
   id            String   @id @default(cuid())
   paymentId     String   @unique
@@ -2214,6 +2359,152 @@ model RentReceipt {
   createdAt     DateTime @default(now())
 
   payment RentPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+// A non-rent billable item — service charge, deposit, utility, maintenance
+// recharge, late fee, or a one-off "other" charge. Rent itself is never
+// modeled here; it stays on RentObligation, which drives lease/occupancy
+// status in ways a generic charge shouldn't.
+model TenantCharge {
+  id              String             @id @default(cuid())
+  tenantId        String
+  propertyId      String
+  unitId          String?
+  leaseId         String?
+  type            RentalChargeType
+  amountMinor     Int
+  amountPaidMinor Int                @default(0)
+  dueDate         DateTime
+  description     String
+  status          RentalChargeStatus @default(PENDING)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  property    ManagedProperty     @relation(fields: [propertyId], references: [id])
+  unit        RentalUnit?         @relation(fields: [unitId], references: [id])
+  lease       Lease?              @relation(fields: [leaseId], references: [id])
+  allocations PaymentAllocation[]
+
+  @@index([tenantId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+// Lets one Payment cover more than one billable thing (e.g. ₦50,000 rent +
+// ₦10,000 service charge in a single bank transfer) — the sum of a
+// payment's allocations always equals that payment's amountMinor.
+// Exactly one of rentObligationId/chargeId is set per row (enforced in
+// payments.ts, not at the DB level, since Prisma has no portable XOR
+// constraint).
+model PaymentAllocation {
+  id               String   @id @default(cuid())
+  paymentId        String
+  rentObligationId String?
+  chargeId         String?
+  amountMinor      Int
+  createdAt        DateTime @default(now())
+
+  payment        RentPayment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  rentObligation RentObligation? @relation(fields: [rentObligationId], references: [id])
+  charge         TenantCharge?   @relation(fields: [chargeId], references: [id])
+
+  @@index([paymentId])
+  @@index([rentObligationId])
+  @@index([chargeId])
+}
+
+// One agreement per property, kept entirely separate from the tenant's
+// Lease — a management fee is a landlord/manager arrangement, never
+// something a tenant's rent obligation is adjusted for.
+model ManagementAgreement {
+  id             String            @id @default(cuid())
+  propertyId     String            @unique
+  feeType        ManagementFeeType
+  // Percentage fees are stored in basis points (1000 = 10.00%) to stay
+  // integer/decimal-safe — never a floating-point percentage.
+  feeBasisPoints Int?
+  feeAmountMinor Int?
+  effectiveFrom  DateTime          @default(now())
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  property ManagedProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+// The formal, stateful "we owe the landlord this much" record — distinct
+// from LandlordStatement, which is a read-only computed report. A
+// settlement is generated FROM the same underlying ledger (payments +
+// management fee + expenses) but then has its own approval/payment
+// workflow that a statement doesn't.
+model LandlordSettlement {
+  id                    String                   @id @default(cuid())
+  ownerId               String
+  propertyId            String?
+  periodStart           DateTime
+  periodEnd             DateTime
+  grossCollectionsMinor Int
+  managementFeeMinor    Int                      @default(0)
+  expensesMinor         Int                      @default(0)
+  adjustmentsMinor      Int                      @default(0)
+  netAmountMinor        Int
+  settlementDate        DateTime?
+  paymentReference      String?
+  status                LandlordSettlementStatus @default(PENDING)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  owner    PropertyOwner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  property ManagedProperty? @relation(fields: [propertyId], references: [id])
+
+  @@index([ownerId])
+  @@index([propertyId])
+}
+
+// One row per landlord — applies to every lease in their portfolio unless
+// a future per-lease override is added. Presets match the phase-2 spec's
+// suggested defaults; `beforeDueDays`/`afterDueDays` accept any custom
+// values too.
+model RentReminderSetting {
+  id            String   @id @default(cuid())
+  ownerId       String   @unique
+  beforeDueDays Int[]    @default([30, 14, 7])
+  afterDueDays  Int[]    @default([1, 7, 14, 30])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner PropertyOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+}
+
+// One row per (obligation, direction, offsetDays) ever sent — the unique
+// constraint is what makes re-running the reminder sweep idempotent: a
+// reminder already logged for that exact threshold is never sent twice.
+model RentReminderLog {
+  id           String              @id @default(cuid())
+  obligationId String
+  direction    ReminderDirection
+  offsetDays   Int
+  channel      NotificationChannel
+  sentAt       DateTime            @default(now())
+
+  obligation RentObligation @relation(fields: [obligationId], references: [id], onDelete: Cascade)
+
+  @@unique([obligationId, direction, offsetDays])
+  @@index([obligationId])
+}
+
+// One row per webhook delivery Paystack makes for a given
+// (reference, event) pair — Paystack retries webhooks that don't 2xx
+// quickly enough, so this is checked before any ledger-mutating work
+// happens, independent of the RentPayment.status idempotency check.
+model PaystackWebhookEvent {
+  id         String   @id @default(cuid())
+  reference  String
+  eventType  String
+  receivedAt DateTime @default(now())
+
+  @@unique([reference, eventType])
 }
 
 // Polymorphic-by-nullable-FK: a document belongs to exactly one of
@@ -2358,9 +2649,10 @@ model MoveIn {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  tenant Tenant     @relation(fields: [tenantId], references: [id])
-  lease  Lease      @relation(fields: [leaseId], references: [id])
-  unit   RentalUnit @relation(fields: [unitId], references: [id])
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  lease     Lease            @relation(fields: [leaseId], references: [id])
+  unit      RentalUnit       @relation(fields: [unitId], references: [id])
+  readiness MoveInReadiness?
 
   @@index([tenantId])
   @@index([leaseId])
@@ -2388,4 +2680,492 @@ model MoveOut {
 
   @@index([tenantId])
   @@index([leaseId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 -- Tenant Acquisition & Leasing.
+//
+// Vacant Unit -> Listing -> Inquiry -> Viewing -> Application -> Screening ->
+// Decision -> Offer -> Reservation -> Lease -> Move-In -> Active Tenant.
+//
+// Deliberately reuses every model from earlier phases wherever the shape
+// already fits: RentalUnit.status carries VACANT/RESERVED/OCCUPIED (no new
+// vacancy-status field needed on the unit itself -- see ListingStatus for
+// the listing's own lifecycle, which is a separate concept from the unit's
+// occupancy), Lease/RentObligation/RentPayment/PaymentAllocation remain the
+// one financial ledger (a lease generated from an accepted offer is
+// created through the exact same createLease() as any other lease),
+// PropertyInspection covers the move-in inspection, and TenantDocument
+// continues to hold documents once someone is an actual Tenant.
+// RentalApplicant is the only genuinely new "person" concept -- an
+// applicant is not a Tenant until convertApplicantToTenant() runs, so a
+// prospect never gets estate/portal access before being approved and
+// leased.
+// ---------------------------------------------------------------------------
+
+enum ListingStatus {
+  NOT_LISTED
+  DRAFT
+  AVAILABLE
+  APPLICATIONS_OPEN
+  UNDER_OFFER
+  RESERVED
+  LEASED
+  WITHDRAWN
+}
+
+enum FurnishedStatus {
+  UNFURNISHED
+  SEMI_FURNISHED
+  FURNISHED
+}
+
+enum InquiryStatus {
+  NEW
+  CONTACTED
+  VIEWING_SCHEDULED
+  APPLICATION_STARTED
+  APPLICATION_SUBMITTED
+  CLOSED
+}
+
+enum ViewingType {
+  PHYSICAL
+  VIDEO
+}
+
+enum ViewingStatus {
+  REQUESTED
+  CONFIRMED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+// A single enum spans both the pre-submission draft states (STARTED/
+// INCOMPLETE/SUBMITTED -- only the applicant sees these) and the manager's
+// Kanban pipeline (REVIEWING onward) so an application's status is always
+// one unambiguous value rather than two parallel fields that could drift
+// out of sync.
+enum ApplicationStatus {
+  STARTED
+  INCOMPLETE
+  SUBMITTED
+  REVIEWING
+  INFORMATION_REQUIRED
+  SCREENING
+  VIEWING
+  APPROVED
+  OFFER_SENT
+  LEASE_PENDING
+  LEASE_SIGNED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ScreeningItemStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+  ISSUE_FOUND
+  NOT_APPLICABLE
+}
+
+// The fixed checklist from the phase-3 spec -- a closed set rather than a
+// free-text checkType, so every application gets the same checklist and
+// nothing can be silently skipped by a typo.
+enum ScreeningCheckType {
+  IDENTITY
+  INCOME_DOCUMENTATION
+  EMPLOYMENT_VERIFICATION
+  PREVIOUS_LANDLORD_REFERENCE
+  DOCUMENTATION_COMPLETE
+  VIEWING_COMPLETED
+  MANAGER_REVIEW
+  OWNER_APPROVAL
+}
+
+// A decision is an event, never a mutable field -- see ApplicationDecision.
+// Every status change on the application itself still happens too (for
+// the Kanban view), but the why and who live here permanently.
+enum ApplicationDecisionType {
+  APPROVE
+  REQUEST_MORE_INFO
+  REJECT
+  WITHDRAWN
+}
+
+enum OfferStatus {
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  WITHDRAWN
+}
+
+enum UnitReservationStatus {
+  ACTIVE
+  RELEASED
+  CONVERTED_TO_LEASE
+  EXPIRED
+}
+
+// The document workflow (has it been drafted, sent, signed) -- distinct
+// from Lease.status, which tracks occupancy (ACTIVE/EXPIRED/TERMINATED).
+// A lease can be LeaseStatus.DRAFT while its document is already SIGNED,
+// the moment before move-in flips occupancy to ACTIVE.
+enum LeaseDocumentStatus {
+  DRAFT
+  UNDER_REVIEW
+  SENT_TO_TENANT
+  PENDING_SIGNATURE
+  SIGNED
+  ACTIVE
+  CANCELLED
+}
+
+// Provider abstraction only -- see leaseSignature.ts. MANUAL_UPLOAD (a
+// signed PDF uploaded by staff) is the only one actually wired up;
+// DOCUSIGN/OTHER exist so a real e-signature integration has somewhere to
+// plug in later without a schema change.
+enum SignatureProvider {
+  MANUAL_UPLOAD
+  DOCUSIGN
+  OTHER
+}
+
+// Per-property setting (section 26) -- a diaspora landlord who wants final
+// say on every new tenant sets OWNER_APPROVAL_REQUIRED; otherwise the
+// assigned manager can approve applications outright.
+enum PropertyApprovalPolicy {
+  MANAGER_CAN_APPROVE
+  OWNER_APPROVAL_REQUIRED
+}
+
+// A public-facing rental listing generated from an existing RentalUnit.
+// Deliberately NOT unique-per-unit: closing one listing (WITHDRAWN/LEASED)
+// and creating a fresh row for the next vacancy cycle keeps each cycle's
+// inquiry/viewing/application counts (see vacancyPerformance.ts) separate
+// instead of accumulating forever against one row.
+model RentalListing {
+  id                       String          @id @default(cuid())
+  listingReference         String          @unique
+  unitId                   String
+  propertyId               String
+  title                    String
+  description              String
+  rentAmountMinor          Int
+  rentFrequency            RentFrequency
+  serviceChargeMinor       Int             @default(0)
+  securityDepositMinor     Int             @default(0)
+  bedrooms                 Int?
+  bathrooms                Int?
+  furnishedStatus          FurnishedStatus @default(UNFURNISHED)
+  availableDate            DateTime
+  amenities                String[]        @default([])
+  rules                    String?
+  imageUrls                String[]        @default([])
+  videoUrls                String[]        @default([])
+  displayArea              String?
+  viewingAvailabilityNotes String?
+  status                   ListingStatus   @default(DRAFT)
+  publishedAt              DateTime?
+  withdrawnAt              DateTime?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  unit         RentalUnit          @relation(fields: [unitId], references: [id])
+  property     ManagedProperty     @relation(fields: [propertyId], references: [id])
+  inquiries    RentalInquiry[]
+  viewings     Viewing[]
+  applications RentalApplication[]
+  offers       RentalOffer[]
+
+  @@index([unitId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+// One base profile per prospective tenant, reused across every listing
+// they apply to (section 11) -- never duplicated just because they submit
+// a second application. Distinct from Tenant: an applicant only becomes a
+// Tenant once convertApplicantToTenant() runs after a signed lease.
+model RentalApplicant {
+  id             String    @id @default(cuid())
+  userId         String?   @unique
+  fullName       String
+  email          String?
+  phone          String?
+  whatsapp       String?
+  dateOfBirth    DateTime?
+  currentAddress String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user         User?               @relation(fields: [userId], references: [id])
+  inquiries    RentalInquiry[]
+  viewings     Viewing[]
+  applications RentalApplication[]
+  reservations UnitReservation[]
+
+  @@index([userId])
+  @@index([email])
+  @@index([phone])
+}
+
+model RentalInquiry {
+  id                  String        @id @default(cuid())
+  listingId           String
+  applicantId         String?
+  name                String
+  email               String?
+  phone               String?
+  whatsapp            String?
+  preferredMoveInDate DateTime?
+  message             String?
+  status              InquiryStatus @default(NEW)
+  assignedToUserId    String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  listing   RentalListing    @relation(fields: [listingId], references: [id])
+  applicant RentalApplicant? @relation(fields: [applicantId], references: [id])
+
+  @@index([listingId])
+  @@index([status])
+}
+
+model Viewing {
+  id                 String        @id @default(cuid())
+  listingId          String
+  unitId             String
+  applicantId        String?
+  type               ViewingType   @default(PHYSICAL)
+  preferredDate      DateTime
+  preferredTime      String?
+  alternativeDate    DateTime?
+  alternativeTime    String?
+  notes              String?
+  status             ViewingStatus @default(REQUESTED)
+  confirmedAt        DateTime?
+  attended           Boolean?
+  interested         Boolean?
+  applicationInvited Boolean?
+  outcomeNotes       String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  listing   RentalListing    @relation(fields: [listingId], references: [id])
+  unit      RentalUnit       @relation(fields: [unitId], references: [id])
+  applicant RentalApplicant? @relation(fields: [applicantId], references: [id])
+
+  @@index([listingId])
+  @@index([unitId])
+  @@index([status])
+}
+
+model RentalApplication {
+  id                   String            @id @default(cuid())
+  applicationReference String            @unique
+  listingId            String
+  applicantId          String
+  status               ApplicationStatus @default(STARTED)
+
+  fullName       String
+  email          String?
+  phone          String?
+  whatsapp       String?
+  dateOfBirth    DateTime?
+  currentAddress String?
+
+  employmentStatus         String?
+  employerName             String?
+  occupation               String?
+  incomeRange              String?
+  employmentDurationMonths Int?
+
+  preferredMoveInDate         DateTime?
+  occupantsCount              Int?
+  intendedLeaseDurationMonths Int?
+
+  currentHousingStatus    String?
+  previousLandlordName    String?
+  previousLandlordContact String?
+
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  assignedToUserId String?
+  submittedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  listing        RentalListing          @relation(fields: [listingId], references: [id])
+  applicant      RentalApplicant        @relation(fields: [applicantId], references: [id])
+  documents      ApplicationDocument[]
+  screeningItems ApplicationScreening[]
+  decisions      ApplicationDecision[]
+  notes          ApplicationNote[]
+  offers         RentalOffer[]
+
+  @@index([listingId])
+  @@index([applicantId])
+  @@index([status])
+}
+
+// Deliberately its own model rather than reusing TenantDocument -- an
+// applicant is not a Tenant yet, and application documents (payslips, ID,
+// references) have different retention/authorization needs than a signed
+// tenant's lease/receipt documents.
+model ApplicationDocument {
+  id            String   @id @default(cuid())
+  applicationId String
+  label         String
+  fileUrl       String
+  documentType  String?
+  createdAt     DateTime @default(now())
+
+  application RentalApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+// One row per ScreeningCheckType per application (enforced by the unique
+// constraint) -- the checklist is seeded with NOT_STARTED rows for every
+// check type when an application enters screening, so nothing can be
+// silently skipped. Never used to auto-approve/reject -- advancing status
+// is always a separate, human action.
+model ApplicationScreening {
+  id               String              @id @default(cuid())
+  applicationId    String
+  checkType        ScreeningCheckType
+  status           ScreeningItemStatus @default(NOT_STARTED)
+  notes            String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  application RentalApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, checkType])
+  @@index([applicationId])
+}
+
+// Internal-only -- never shown to the applicant unless explicitly shared
+// through some future feature. Authorization for who may read these
+// follows the same property-scoping as every other Tenant Management
+// record (see access.ts).
+model ApplicationNote {
+  id            String   @id @default(cuid())
+  applicationId String
+  authorUserId  String
+  body          String
+  createdAt     DateTime @default(now())
+
+  application RentalApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+// The permanent decision trail (section 14) -- an application's status
+// field can change many times, but every APPROVE/REQUEST_MORE_INFO/
+// REJECT/WITHDRAWN event is preserved here with its reason, forever. An
+// application is never deleted, even when rejected.
+model ApplicationDecision {
+  id              String                  @id @default(cuid())
+  applicationId   String
+  decision        ApplicationDecisionType
+  reason          String
+  decidedByUserId String
+  createdAt       DateTime                @default(now())
+
+  application RentalApplication @relation(fields: [applicationId], references: [id])
+
+  @@index([applicationId])
+}
+
+model RentalOffer {
+  id                   String        @id @default(cuid())
+  offerReference       String        @unique
+  applicationId        String
+  listingId            String
+  unitId               String
+  rentAmountMinor      Int
+  paymentFrequency     RentFrequency
+  serviceChargeMinor   Int           @default(0)
+  securityDepositMinor Int           @default(0)
+  leaseDurationMonths  Int
+  proposedStartDate    DateTime
+  expiresAt            DateTime
+  specialConditions    String?
+  status               OfferStatus   @default(SENT)
+  respondedAt          DateTime?
+  declineReason        String?
+  createdByUserId      String
+  leaseId              String?       @unique
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  application RentalApplication @relation(fields: [applicationId], references: [id])
+  listing     RentalListing     @relation(fields: [listingId], references: [id])
+  unit        RentalUnit        @relation(fields: [unitId], references: [id])
+  lease       Lease?            @relation(fields: [leaseId], references: [id])
+  reservation UnitReservation?
+
+  @@index([applicationId])
+  @@index([listingId])
+  @@index([status])
+}
+
+// The event log behind "prevent multiple finalized leases for the same
+// unit/date range" (section 16) -- createLease() checks for an ACTIVE
+// reservation belonging to someone else before allowing a new one, and
+// generateLeaseFromOffer() flips this to CONVERTED_TO_LEASE rather than
+// deleting it, so the reservation history survives.
+model UnitReservation {
+  id            String                @id @default(cuid())
+  unitId        String
+  offerId       String?               @unique
+  applicantId   String?
+  status        UnitReservationStatus @default(ACTIVE)
+  reservedFrom  DateTime              @default(now())
+  reservedUntil DateTime?
+  releasedAt    DateTime?
+  createdAt     DateTime              @default(now())
+
+  unit      RentalUnit       @relation(fields: [unitId], references: [id])
+  offer     RentalOffer?     @relation(fields: [offerId], references: [id])
+  applicant RentalApplicant? @relation(fields: [applicantId], references: [id])
+
+  @@index([unitId])
+  @@index([status])
+}
+
+// The granular move-in readiness checklist from section 21 -- one row per
+// MoveIn, distinct from MoveIn.stage (which tracks the guided workflow's
+// coarse stages). An item can only be marked complete normally by the
+// underlying fact becoming true (lease signed, deposit payment recorded,
+// etc.) except through an explicit, audited override.
+model MoveInReadiness {
+  id                         String   @id @default(cuid())
+  moveInId                   String   @unique
+  leaseSigned                Boolean  @default(false)
+  depositPaid                Boolean  @default(false)
+  initialRentPaid            Boolean  @default(false)
+  documentsComplete          Boolean  @default(false)
+  moveInDateConfirmed        Boolean  @default(false)
+  inspectionScheduled        Boolean  @default(false)
+  keysPrepared               Boolean  @default(false)
+  estateRegistrationRequired Boolean  @default(false)
+  estateRegistrationComplete Boolean  @default(false)
+  utilitiesSetupRequired     Boolean  @default(false)
+  utilitiesSetupComplete     Boolean  @default(false)
+  overriddenItems            String[] @default([])
+  overrideReason             String?
+  overriddenByUserId         String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  moveIn MoveIn @relation(fields: [moveInId], references: [id], onDelete: Cascade)
 }

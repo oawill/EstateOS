@@ -9,18 +9,29 @@ import {
   createTenantSchema,
   createLeaseSchema,
   renewLeaseSchema,
-  recordRentPaymentSchema,
   recordMaintenanceExpenseSchema,
   assignPropertyManagerSchema,
   createPropertyInspectionSchema,
+  createTenantChargeSchema,
+  recordPaymentSchema,
+  reversePaymentSchema,
+  waiveObligationSchema,
+  upsertManagementAgreementSchema,
+  generateSettlementSchema,
+  updateSettlementStatusSchema,
+  updateReminderSettingSchema,
+  updatePayoutDetailsSchema,
 } from "@/server/modules/tenantManagement/schema";
-import { createOrGetOwnProfile, createManagedProperty, createRentalUnit, assignPropertyManager } from "@/server/modules/tenantManagement/property";
+import { createOrGetOwnProfile, createManagedProperty, createRentalUnit, assignPropertyManager, updatePayoutDetails } from "@/server/modules/tenantManagement/property";
 import { createTenant } from "@/server/modules/tenantManagement/tenant";
 import { createLease, renewLease, markLeaseNoticeGiven } from "@/server/modules/tenantManagement/lease";
-import { recordRentPayment } from "@/server/modules/tenantManagement/payments";
+import { recordPayment, reversePayment, waiveObligation } from "@/server/modules/tenantManagement/payments";
 import { updateMaintenanceStatus, recordMaintenanceExpense } from "@/server/modules/tenantManagement/maintenance";
 import { startMoveIn, advanceMoveInStage, startMoveOut, advanceMoveOutStage } from "@/server/modules/tenantManagement/moveInOut";
 import { createPropertyInspection } from "@/server/modules/tenantManagement/inspection";
+import { createTenantCharge } from "@/server/modules/tenantManagement/charges";
+import { upsertManagementAgreement, generateLandlordSettlement, updateSettlementStatus } from "@/server/modules/tenantManagement/managementFee";
+import { updateReminderSetting, runReminderSweep } from "@/server/modules/tenantManagement/reminders";
 import type { RentalMaintenanceStatus, MoveInStage, MoveOutStage } from "@prisma/client";
 
 export interface ActionState {
@@ -32,7 +43,7 @@ function formError(error: unknown): ActionState {
 }
 
 /** Every money form field is entered in Naira (whole units) and converted here to minor units (kobo) — the only place in the UI layer that does this conversion, so every *Minor field downstream stays a plain integer. */
-function toMinor(value: FormDataEntryValue | null): number | undefined {
+function toMinor(value: FormDataEntryValue | number | null): number | undefined {
   if (value === null || value === "") return undefined;
   const naira = Number(value);
   if (Number.isNaN(naira)) return undefined;
@@ -189,28 +200,6 @@ export async function markLeaseNoticeAction(leaseId: string) {
   revalidatePath("/dashboard/tenants/leases");
 }
 
-export async function recordRentPaymentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const user = await requireUser();
-  const parsed = recordRentPaymentSchema.safeParse({
-    obligationId: formData.get("obligationId"),
-    amountMinor: toMinor(formData.get("amountMinor")),
-    method: formData.get("method"),
-    paidAt: formData.get("paidAt") || undefined,
-    transactionRef: formData.get("transactionRef") || undefined,
-    notes: formData.get("notes") || undefined,
-  });
-  if (!parsed.success) return { error: "Please check the payment details." };
-
-  try {
-    await recordRentPayment(user, parsed.data);
-  } catch (error) {
-    return formError(error);
-  }
-  revalidatePath("/dashboard/tenants/payments");
-  revalidatePath("/dashboard/tenants");
-  return {};
-}
-
 export async function updateMaintenanceStatusAction(requestId: string, status: RentalMaintenanceStatus, vendorName?: string) {
   const user = await requireUser();
   await updateMaintenanceStatus(user, requestId, status, vendorName);
@@ -302,6 +291,214 @@ export async function recordPropertyInspectionAction(_prev: ActionState, formDat
     return formError(error);
   }
   revalidatePath("/dashboard/tenants/inspections");
+  return {};
+}
+
+export async function createChargeAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = createTenantChargeSchema.safeParse({
+    tenantId: formData.get("tenantId"),
+    propertyId: formData.get("propertyId"),
+    unitId: formData.get("unitId") || undefined,
+    leaseId: formData.get("leaseId") || undefined,
+    type: formData.get("type"),
+    amountMinor: toMinor(formData.get("amountMinor")),
+    dueDate: formData.get("dueDate"),
+    description: formData.get("description"),
+  });
+  if (!parsed.success) return { error: "Please check the charge details." };
+
+  try {
+    await createTenantCharge(user, parsed.data);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/charges");
+  return {};
+}
+
+/** Records a payment that may cover more than one obligation/charge in one submission — the dashboard's "Record a payment" form. */
+export async function recordPaymentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+
+  // The allocations JSON carries Naira amounts, same as every other money
+  // field in this file — toMinor() below is the one place that converts,
+  // per line, so a form never has to do minor-unit arithmetic itself.
+  let rawAllocations: { rentObligationId?: string; chargeId?: string; amountMinor: number }[] = [];
+  try {
+    rawAllocations = JSON.parse(String(formData.get("allocations") ?? "[]"));
+  } catch {
+    return { error: "Invalid allocation data." };
+  }
+  const allocations = rawAllocations
+    .map((a) => ({ ...a, amountMinor: toMinor(a.amountMinor) ?? 0 }))
+    .filter((a) => a.amountMinor > 0);
+
+  const parsed = recordPaymentSchema.safeParse({
+    tenantId: formData.get("tenantId"),
+    leaseId: formData.get("leaseId"),
+    amountMinor: toMinor(formData.get("amountMinor")),
+    method: formData.get("method"),
+    paidAt: formData.get("paidAt") || undefined,
+    transactionRef: formData.get("transactionRef") || undefined,
+    notes: formData.get("notes") || undefined,
+    proofOfPaymentUrl: formData.get("proofOfPaymentUrl") || undefined,
+    allocations,
+  });
+  if (!parsed.success) return { error: "Please check the payment details." };
+
+  try {
+    await recordPayment(user, parsed.data);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/payments");
+  revalidatePath("/dashboard/tenants/charges");
+  revalidatePath("/dashboard/tenants");
+  return {};
+}
+
+export async function reversePaymentAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = reversePaymentSchema.safeParse({
+    paymentId: formData.get("paymentId"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) return { error: "A reason is required to reverse a payment." };
+
+  try {
+    await reversePayment(user, parsed.data.paymentId, parsed.data.reason);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/payments");
+  revalidatePath("/dashboard/tenants");
+  return {};
+}
+
+export async function waiveObligationAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = waiveObligationSchema.safeParse({
+    obligationId: formData.get("obligationId"),
+    reason: formData.get("reason"),
+  });
+  if (!parsed.success) return { error: "A reason is required to waive an obligation." };
+
+  try {
+    await waiveObligation(user, parsed.data.obligationId, parsed.data.reason);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/payments");
+  return {};
+}
+
+export async function upsertManagementAgreementAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const feePercentRaw = formData.get("feePercent");
+  const feeAmountRaw = formData.get("feeAmountMinor");
+
+  const parsed = upsertManagementAgreementSchema.safeParse({
+    propertyId: formData.get("propertyId"),
+    feeType: formData.get("feeType"),
+    feePercent: feePercentRaw ? Number(feePercentRaw) : undefined,
+    feeAmountMinor: feeAmountRaw ? toMinor(feeAmountRaw) : undefined,
+    notes: formData.get("notes") || undefined,
+  });
+  if (!parsed.success) return { error: "Please check the management fee details." };
+
+  try {
+    await upsertManagementAgreement(user, parsed.data);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/settlements");
+  return {};
+}
+
+export async function generateSettlementAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = generateSettlementSchema.safeParse({
+    ownerId: formData.get("ownerId"),
+    propertyId: formData.get("propertyId") || undefined,
+    periodMonth: formData.get("periodMonth"),
+    periodYear: formData.get("periodYear"),
+  });
+  if (!parsed.success) return { error: "Please select a valid period." };
+
+  try {
+    await generateLandlordSettlement(user, parsed.data);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/settlements");
+  return {};
+}
+
+export async function updateSettlementStatusAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = updateSettlementStatusSchema.safeParse({
+    settlementId: formData.get("settlementId"),
+    status: formData.get("status"),
+    paymentReference: formData.get("paymentReference") || undefined,
+  });
+  if (!parsed.success) return { error: "Please check the settlement status update." };
+
+  try {
+    await updateSettlementStatus(user, parsed.data);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/settlements");
+  return {};
+}
+
+export async function updateReminderSettingAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const parsed = updateReminderSettingSchema.safeParse({
+    beforeDueDays: String(formData.get("beforeDueDays") ?? "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean),
+    afterDueDays: String(formData.get("afterDueDays") ?? "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean),
+  });
+  if (!parsed.success) return { error: "Please enter day counts as a comma-separated list, e.g. 30,14,7." };
+
+  try {
+    await updateReminderSetting(user, parsed.data);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/reminders");
+  return {};
+}
+
+export async function runReminderSweepAction() {
+  await requireUser();
+  return runReminderSweep();
+}
+
+export async function updatePayoutDetailsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const ownerId = formData.get("ownerId");
+  if (typeof ownerId !== "string" || !ownerId) return { error: "Missing landlord profile." };
+
+  const parsed = updatePayoutDetailsSchema.safeParse({
+    payoutBankName: formData.get("payoutBankName"),
+    payoutAccountNumber: formData.get("payoutAccountNumber"),
+    payoutAccountName: formData.get("payoutAccountName"),
+  });
+  if (!parsed.success) return { error: "Please check the bank details." };
+
+  try {
+    await updatePayoutDetails(user, ownerId, parsed.data);
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/landlord");
   return {};
 }
 

@@ -1,4 +1,4 @@
-import { RentFrequency } from "@prisma/client";
+import { Prisma, RentFrequency } from "@prisma/client";
 import { prisma } from "@/server/db/client";
 import { NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
@@ -7,7 +7,8 @@ import { assertPropertyAccess } from "./access";
 import { nextLeaseCode } from "./sequence";
 import type { CreateLeaseInput, RenewLeaseInput } from "./schema";
 
-const FREQUENCY_MONTHS: Record<RentFrequency, number> = {
+// CUSTOM deliberately has no step — see buildObligationPeriods' fallback.
+const FREQUENCY_MONTHS: Partial<Record<RentFrequency, number>> = {
   MONTHLY: 1,
   QUARTERLY: 3,
   SEMI_ANNUAL: 6,
@@ -20,10 +21,16 @@ function addMonthsUTC(date: Date, months: number): Date {
   return result;
 }
 
-/** Splits a lease's term into one RentObligation per payment period — the rent amount is spread evenly per period, not assumed monthly. */
+/** Splits a lease's term into one RentObligation per payment period — the rent amount is spread evenly per period, not assumed monthly. CUSTOM frequency falls back to a single obligation spanning the whole lease term, since there's no fixed step to divide by. */
 function buildObligationPeriods(startDate: Date, endDate: Date, frequency: RentFrequency, rentAmountMinor: number, rentDueDay: number) {
   const stepMonths = FREQUENCY_MONTHS[frequency];
   const periods: { periodStart: Date; periodEnd: Date; dueDate: Date; amountDueMinor: number }[] = [];
+
+  if (!stepMonths) {
+    const dueDate = new Date(startDate);
+    dueDate.setUTCDate(Math.min(rentDueDay, 28));
+    return [{ periodStart: new Date(startDate), periodEnd: new Date(endDate), dueDate, amountDueMinor: rentAmountMinor }];
+  }
 
   let cursor = new Date(startDate);
   while (cursor < endDate) {
@@ -39,6 +46,48 @@ function buildObligationPeriods(startDate: Date, endDate: Date, frequency: RentF
   return periods;
 }
 
+/**
+ * The rent billing engine's write path — idempotent by construction: it
+ * only ever inserts obligations for periods that don't already have one on
+ * this lease (matched by periodStart), so calling it twice for the same
+ * lease/term (e.g. a future re-run of a billing job) can never create
+ * duplicates. This is the only place RentObligation rows are ever created.
+ */
+export async function generateRentObligationsForLease(
+  tx: Prisma.TransactionClient,
+  leaseId: string,
+  startDate: Date,
+  endDate: Date,
+  frequency: RentFrequency,
+  rentAmountMinor: number,
+  rentDueDay: number,
+) {
+  const periods = buildObligationPeriods(startDate, endDate, frequency, rentAmountMinor, rentDueDay);
+
+  const existing = await tx.rentObligation.findMany({
+    where: { leaseId, periodStart: { in: periods.map((p) => p.periodStart) } },
+    select: { periodStart: true },
+  });
+  const existingStarts = new Set(existing.map((o) => o.periodStart.getTime()));
+  const toCreate = periods.filter((p) => !existingStarts.has(p.periodStart.getTime()));
+
+  if (toCreate.length === 0) return { created: 0 };
+
+  await tx.rentObligation.createMany({
+    data: toCreate.map((p) => ({
+      leaseId,
+      periodStart: p.periodStart,
+      periodEnd: p.periodEnd,
+      dueDate: p.dueDate,
+      originalAmountMinor: p.amountDueMinor,
+      amountDueMinor: p.amountDueMinor,
+      status: "UPCOMING",
+    })),
+  });
+
+  return { created: toCreate.length };
+}
+
 /** Creates a lease plus its full run of RentObligations, and marks the unit occupied. Rent obligations are never assumed monthly — periods follow the lease's own payment frequency. */
 export async function createLease(actor: CurrentUser, input: CreateLeaseInput) {
   const unit = await prisma.rentalUnit.findUnique({ where: { id: input.unitId } });
@@ -49,7 +98,6 @@ export async function createLease(actor: CurrentUser, input: CreateLeaseInput) {
   if (!tenant) throw new NotFoundError("Tenant");
 
   const leaseCode = await nextLeaseCode();
-  const periods = buildObligationPeriods(input.startDate, input.endDate, input.paymentFrequency, input.rentAmountMinor, input.rentDueDay);
 
   const lease = await prisma.$transaction(async (tx) => {
     const lease = await tx.lease.create({
@@ -70,16 +118,15 @@ export async function createLease(actor: CurrentUser, input: CreateLeaseInput) {
       },
     });
 
-    await tx.rentObligation.createMany({
-      data: periods.map((p) => ({
-        leaseId: lease.id,
-        periodStart: p.periodStart,
-        periodEnd: p.periodEnd,
-        dueDate: p.dueDate,
-        amountDueMinor: p.amountDueMinor,
-        status: "UPCOMING",
-      })),
-    });
+    await generateRentObligationsForLease(
+      tx,
+      lease.id,
+      input.startDate,
+      input.endDate,
+      input.paymentFrequency,
+      input.rentAmountMinor,
+      input.rentDueDay,
+    );
 
     await tx.rentalUnit.update({ where: { id: input.unitId }, data: { status: "OCCUPIED" } });
     await tx.tenant.update({ where: { id: input.tenantId }, data: { status: "ACTIVE", unitId: input.unitId } });
@@ -111,7 +158,6 @@ export async function renewLease(actor: CurrentUser, input: RenewLeaseInput) {
   await assertPropertyAccess(actor, previousUnit.propertyId);
 
   const leaseCode = await nextLeaseCode();
-  const periods = buildObligationPeriods(input.startDate, input.endDate, input.paymentFrequency, input.rentAmountMinor, input.rentDueDay);
 
   const { newLease, renewal } = await prisma.$transaction(async (tx) => {
     const newLease = await tx.lease.create({
@@ -132,16 +178,15 @@ export async function renewLease(actor: CurrentUser, input: RenewLeaseInput) {
       },
     });
 
-    await tx.rentObligation.createMany({
-      data: periods.map((p) => ({
-        leaseId: newLease.id,
-        periodStart: p.periodStart,
-        periodEnd: p.periodEnd,
-        dueDate: p.dueDate,
-        amountDueMinor: p.amountDueMinor,
-        status: "UPCOMING",
-      })),
-    });
+    await generateRentObligationsForLease(
+      tx,
+      newLease.id,
+      input.startDate,
+      input.endDate,
+      input.paymentFrequency,
+      input.rentAmountMinor,
+      input.rentDueDay,
+    );
 
     await tx.lease.update({ where: { id: previousLease.id }, data: { status: "EXPIRED" } });
 

@@ -4,10 +4,11 @@ import { guardPage } from "@/server/auth/pageGuard";
 import { requireUser } from "@/server/auth/session";
 import { requirePropertyOwner } from "@/server/modules/tenantManagement/access";
 import { getDashboardKpis } from "@/server/modules/tenantManagement/dashboard";
-import { listAccessibleProperties } from "@/server/modules/tenantManagement/property";
+import { listAccessibleProperties, getPayoutDetails } from "@/server/modules/tenantManagement/property";
 import { listOwnerStatements } from "@/server/modules/tenantManagement/statements";
 import { formatNaira } from "@/lib/utils";
 import { StatementForm } from "./StatementForm";
+import { PayoutDetailsForm } from "./PayoutDetailsForm";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -16,10 +17,11 @@ const MONTH_NAMES = [
 
 export default async function LandlordPortalPage() {
   const { user, ownerId } = await guardPage(async () => requirePropertyOwner(await requireUser()));
-  const [kpis, properties, statements] = await Promise.all([
+  const [kpis, properties, statements, payoutDetails] = await Promise.all([
     getDashboardKpis(user),
     listAccessibleProperties(user),
     listOwnerStatements(user, ownerId),
+    getPayoutDetails(user, ownerId),
   ]);
 
   return (
@@ -38,7 +40,17 @@ export default async function LandlordPortalPage() {
         <KpiCard label="Leases expiring (90d)" value={kpis.leasesExpiring90} tone="warning" />
         <KpiCard label="Open maintenance" value={kpis.openMaintenanceCount} tone="warning" />
         <KpiCard label="Overdue rent" value={kpis.overdueObligationCount} tone="danger" />
+        <KpiCard label="Collection rate (month)" value={`${kpis.collectionRate}%`} />
+        <KpiCard label="Settlements due to you" value={formatNaira(kpis.landlordSettlementsDueMinor)} />
       </div>
+
+      <Card>
+        <p className="text-sm font-medium">Payout Details</p>
+        <p className="mt-1 text-xs text-foreground-muted">Only visible to you — never shown in any property or tenant list.</p>
+        <div className="mt-3">
+          <PayoutDetailsForm ownerId={ownerId} current={payoutDetails} />
+        </div>
+      </Card>
 
       <Card>
         <p className="text-sm font-medium">Generate a Statement</p>
