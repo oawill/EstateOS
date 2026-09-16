@@ -429,6 +429,10 @@ model User {
   assignedDemoRequests       DemoRequest[]        @relation("DemoRequestAssignee")
   resolvedCommunityReports   CommunityReport[]    @relation("CommunityReportResolver")
   passwordResetTokens        PasswordResetToken[]
+
+  propertyOwnerProfile       PropertyOwner?
+  tenantProfile              Tenant?
+  managedPropertyAssignments PropertyManager[]
 }
 
 // Only the SHA-256 hash of the raw token is ever stored — the raw,
@@ -1817,4 +1821,571 @@ model AuditLog {
 
   @@index([estateId])
   @@index([entityType, entityId])
+}
+
+// ---------------------------------------------------------------------------
+// Tenant Management — a separate NidraQ product line, not an extension of
+// Estate Management. A landlord/property/tenant/lease relationship is a
+// different business concept from an estate/resident relationship, even
+// though the same person can be both (e.g. a landlord who also lives in a
+// NidraQ-managed estate). Deliberately NOT estate-scoped and NOT routed
+// through scoped()/EstateMember/the Role enum used there — those model
+// "who has what permission inside one Estate," which doesn't apply here.
+// Authorization instead follows direct ownership: a User "is a landlord"
+// because a PropertyOwner row references them, "is a tenant" because a
+// Tenant row references them, and "is a property manager" because a
+// PropertyManager assignment references them — exactly like how
+// getResidentByUserId already establishes "is a resident" for Estate
+// Management, not a separately-granted role flag. This lets one User hold
+// every role at once with zero duplicate accounts.
+//
+// Money is stored in minor units (kobo-equivalent), matching every other
+// monetary field in this schema. Reuses PlatformSequence (see
+// src/server/modules/demoRequests/sequence.ts) for lease codes, rent
+// receipt numbers and maintenance request codes — no new sequence
+// mechanism. Reuses recordAudit() (estateId: null, same as DemoRequest and
+// password-reset events) for sensitive lease/payment/document changes.
+// Reuses the existing S3 presigned-upload helper (src/server/modules/
+// storage/s3.ts) for inspection/maintenance photos — optional, same
+// graceful degradation as Community photos.
+// ---------------------------------------------------------------------------
+
+enum RentalPropertyType {
+  APARTMENT_BUILDING
+  DUPLEX
+  DETACHED_HOUSE
+  TERRACE
+  FLAT
+  COMMERCIAL
+  MIXED_USE
+  OTHER
+}
+
+enum RentalUnitStatus {
+  VACANT
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+  UNAVAILABLE
+}
+
+// Nigerian rent is very often annual, sometimes quarterly/semi-annual —
+// never assume monthly. ANNUAL is the default for new units.
+enum RentFrequency {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
+}
+
+enum TenantStatus {
+  APPLICANT
+  APPROVED
+  ACTIVE
+  NOTICE_GIVEN
+  FORMER
+}
+
+enum LeaseStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  ACTIVE
+  EXPIRING
+  RENEWAL_PENDING
+  EXPIRED
+  TERMINATED
+}
+
+enum RentObligationStatus {
+  UPCOMING
+  DUE
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum RentPaymentMethod {
+  BANK_TRANSFER
+  CARD
+  CASH
+  POS
+  ONLINE_PAYMENT
+  OTHER
+}
+
+// Prefixed Rental* to avoid colliding with the existing estate-maintenance
+// MaintenanceCategory/MaintenancePriority/MaintenanceStatus enums, which
+// describe a different workflow (resident-reported estate tickets).
+enum RentalMaintenanceCategory {
+  PLUMBING
+  ELECTRICAL
+  AIR_CONDITIONING
+  APPLIANCE
+  STRUCTURAL
+  SECURITY
+  WATER
+  GENERATOR_POWER
+  CLEANING
+  OTHER
+}
+
+enum RentalMaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RentalMaintenanceStatus {
+  SUBMITTED
+  ACKNOWLEDGED
+  ASSIGNED
+  IN_PROGRESS
+  WAITING
+  COMPLETED
+  CLOSED
+}
+
+enum PropertyInspectionType {
+  MOVE_IN
+  ROUTINE
+  MOVE_OUT
+  MAINTENANCE
+  OWNER_REQUESTED
+}
+
+enum MoveInStage {
+  STARTED
+  LEASE_SIGNED
+  DEPOSIT_RECORDED
+  RENT_RECORDED
+  INSPECTION_DONE
+  KEYS_ISSUED
+  COMPLETED
+}
+
+enum MoveOutStage {
+  NOTICE_RECEIVED
+  DATE_CONFIRMED
+  FINAL_REVIEW
+  INSPECTION_DONE
+  DEPOSIT_RECONCILED
+  KEYS_RETURNED
+  COMPLETED
+}
+
+// The landlord/property-owner — may or may not have a NidraQ login
+// (userId is nullable so a manager can create an owner record before the
+// owner ever signs up, e.g. for a diaspora landlord who'll log in later).
+model PropertyOwner {
+  id                           String   @id @default(cuid())
+  userId                       String?  @unique
+  name                         String
+  email                        String?
+  phone                        String?
+  whatsapp                     String?
+  countryOfResidence           String?
+  preferredCurrency            String   @default("NGN")
+  preferredCommunicationMethod String?
+  notes                        String?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  user           User?               @relation(fields: [userId], references: [id])
+  properties     ManagedProperty[]
+  documents      TenantDocument[]
+  statements     LandlordStatement[]
+  createdTenants Tenant[]
+
+  @@index([userId])
+}
+
+model ManagedProperty {
+  id           String             @id @default(cuid())
+  ownerId      String
+  name         String
+  addressLine  String
+  city         String
+  state        String?
+  country      String             @default("NG")
+  propertyType RentalPropertyType
+  imageUrls    String[]           @default([])
+  notes        String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  owner               PropertyOwner        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  units               RentalUnit[]
+  managers            PropertyManager[]
+  inspections         PropertyInspection[]
+  maintenanceRequests MaintenanceRequest[]
+  statements          LandlordStatement[]
+
+  @@index([ownerId])
+}
+
+// A User granted management access to one property. Authorization checks
+// must always go through this table — a property manager only ever sees
+// properties they're explicitly assigned to, never a landlord's full
+// portfolio by default.
+model PropertyManager {
+  id         String   @id @default(cuid())
+  propertyId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  property ManagedProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, userId])
+  @@index([userId])
+}
+
+model RentalUnit {
+  id                   String           @id @default(cuid())
+  propertyId           String
+  label                String
+  bedrooms             Int?
+  bathrooms            Int?
+  unitType             String?
+  rentAmountMinor      Int
+  rentFrequency        RentFrequency    @default(ANNUAL)
+  serviceChargeMinor   Int              @default(0)
+  securityDepositMinor Int              @default(0)
+  status               RentalUnitStatus @default(VACANT)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  property            ManagedProperty      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenants             Tenant[]
+  leases              Lease[]
+  inspections         PropertyInspection[]
+  maintenanceRequests MaintenanceRequest[]
+  moveIns             MoveIn[]
+  moveOuts            MoveOut[]
+
+  @@index([propertyId])
+}
+
+// The tenant's current unit (unitId) is a convenience pointer — historical
+// occupancy lives in Lease rows, which are never deleted or overwritten on
+// renewal or move-out.
+model Tenant {
+  id                    String       @id @default(cuid())
+  userId                String?      @unique
+  unitId                String?
+  // Set at creation to the acting landlord's PropertyOwner id. A tenant has
+  // no other ownership link until a lease assigns them a unit (e.g. an
+  // APPLICANT who hasn't moved in yet), so without this field an
+  // unassigned tenant would be invisible to its own creator — or worse,
+  // visible to every landlord — once queries scope by unit->property->owner.
+  createdByOwnerId      String?
+  fullName              String
+  email                 String?
+  phone                 String?
+  whatsapp              String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  moveInDate            DateTime?
+  status                TenantStatus @default(APPLICANT)
+  notes                 String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  unit                RentalUnit?          @relation(fields: [unitId], references: [id])
+  user                User?                @relation(fields: [userId], references: [id])
+  createdByOwner      PropertyOwner?       @relation(fields: [createdByOwnerId], references: [id])
+  leases              Lease[]
+  documents           TenantDocument[]
+  payments            RentPayment[]
+  maintenanceRequests MaintenanceRequest[]
+  moveIns             MoveIn[]
+  moveOuts            MoveOut[]
+
+  @@index([unitId])
+  @@index([userId])
+  @@index([createdByOwnerId])
+}
+
+model Lease {
+  id                   String        @id @default(cuid())
+  leaseCode            String        @unique
+  tenantId             String
+  unitId               String
+  startDate            DateTime
+  endDate              DateTime
+  rentAmountMinor      Int
+  paymentFrequency     RentFrequency
+  securityDepositMinor Int           @default(0)
+  serviceChargeMinor   Int           @default(0)
+  // Day-of-period rent is due (e.g. 1 = due on the 1st of each period).
+  rentDueDay           Int           @default(1)
+  gracePeriodDays      Int           @default(0)
+  renewalTerms         String?
+  documentUrl          String?
+  status               LeaseStatus   @default(DRAFT)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  tenant             Tenant           @relation(fields: [tenantId], references: [id])
+  unit               RentalUnit       @relation(fields: [unitId], references: [id])
+  obligations        RentObligation[]
+  payments           RentPayment[]
+  documents          TenantDocument[]
+  moveIns            MoveIn[]
+  moveOuts           MoveOut[]
+  renewalsAsPrevious LeaseRenewal[]   @relation("RenewalPrevious")
+  renewalAsNew       LeaseRenewal?    @relation("RenewalNew")
+
+  @@index([tenantId])
+  @@index([unitId])
+}
+
+// The explicit renewal event — links an old lease to the new one it became.
+// The old Lease row is never modified beyond its status (e.g. → EXPIRED);
+// its rent/dates/deposit stay exactly as originally recorded.
+model LeaseRenewal {
+  id              String   @id @default(cuid())
+  previousLeaseId String
+  newLeaseId      String   @unique
+  renewedByUserId String?
+  notes           String?
+  createdAt       DateTime @default(now())
+
+  previousLease Lease @relation("RenewalPrevious", fields: [previousLeaseId], references: [id])
+  newLease      Lease @relation("RenewalNew", fields: [newLeaseId], references: [id])
+
+  @@index([previousLeaseId])
+}
+
+// Every expected rent payment is its own row, recorded separately from
+// actual payments received — this is what makes partial payments and
+// arrears tracking correct instead of a single "is this period paid"
+// boolean on the lease.
+model RentObligation {
+  id              String               @id @default(cuid())
+  leaseId         String
+  periodStart     DateTime
+  periodEnd       DateTime
+  dueDate         DateTime
+  amountDueMinor  Int
+  amountPaidMinor Int                  @default(0)
+  status          RentObligationStatus @default(UPCOMING)
+  notes           String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  lease    Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  payments RentPayment[]
+
+  @@index([leaseId])
+  @@index([status])
+}
+
+model RentPayment {
+  id               String            @id @default(cuid())
+  referenceNumber  String            @unique
+  tenantId         String
+  leaseId          String
+  obligationId     String?
+  amountMinor      Int
+  paidAt           DateTime          @default(now())
+  method           RentPaymentMethod
+  transactionRef   String?
+  recordedByUserId String?
+  notes            String?
+  createdAt        DateTime          @default(now())
+
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  lease      Lease           @relation(fields: [leaseId], references: [id])
+  obligation RentObligation? @relation(fields: [obligationId], references: [id])
+  receipt    RentReceipt?
+
+  @@index([tenantId])
+  @@index([leaseId])
+  @@index([obligationId])
+}
+
+model RentReceipt {
+  id            String   @id @default(cuid())
+  paymentId     String   @unique
+  receiptNumber String   @unique
+  createdAt     DateTime @default(now())
+
+  payment RentPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+// Polymorphic-by-nullable-FK: a document belongs to exactly one of
+// tenant/lease/owner. Kept as one model rather than three near-identical
+// ones since the shape (label, file, type) is identical in every case.
+model TenantDocument {
+  id              String   @id @default(cuid())
+  tenantId        String?
+  leaseId         String?
+  propertyOwnerId String?
+  label           String
+  fileUrl         String
+  documentType    String?
+  createdAt       DateTime @default(now())
+
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease         Lease?         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  propertyOwner PropertyOwner? @relation(fields: [propertyOwnerId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([leaseId])
+  @@index([propertyOwnerId])
+}
+
+model PropertyInspection {
+  id              String                 @id @default(cuid())
+  propertyId      String
+  unitId          String?
+  type            PropertyInspectionType
+  inspectorUserId String?
+  notes           String?
+  issuesFound     String?
+  photoUrls       String[]               @default([])
+  inspectedAt     DateTime               @default(now())
+  createdAt       DateTime               @default(now())
+
+  property ManagedProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit     RentalUnit?     @relation(fields: [unitId], references: [id])
+
+  @@index([propertyId])
+  @@index([unitId])
+}
+
+model MaintenanceRequest {
+  id                     String                    @id @default(cuid())
+  requestCode            String                    @unique
+  propertyId             String
+  unitId                 String
+  tenantId               String?
+  category               RentalMaintenanceCategory
+  description            String
+  priority               RentalMaintenancePriority @default(MEDIUM)
+  status                 RentalMaintenanceStatus   @default(SUBMITTED)
+  permissionToEnter      Boolean                   @default(false)
+  preferredContactMethod String?
+  photoUrls              String[]                  @default([])
+  vendorName             String?
+  assignedAt             DateTime?
+  completedAt            DateTime?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+
+  property ManagedProperty      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit     RentalUnit           @relation(fields: [unitId], references: [id])
+  tenant   Tenant?              @relation(fields: [tenantId], references: [id])
+  expenses MaintenanceExpense[]
+
+  @@index([propertyId])
+  @@index([unitId])
+  @@index([tenantId])
+}
+
+// Feeds landlord statements — every cost tied to a maintenance request
+// rolls up into Property -> Unit -> MaintenanceRequest -> expense.
+model MaintenanceExpense {
+  id                  String   @id @default(cuid())
+  requestId           String
+  vendorName          String
+  description         String
+  estimateMinor       Int?
+  approvedAmountMinor Int?
+  finalAmountMinor    Int?
+  isPaid              Boolean  @default(false)
+  invoiceUrl          String?
+  receiptUrl          String?
+  createdAt           DateTime @default(now())
+
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
+
+model LandlordStatement {
+  id                String   @id @default(cuid())
+  ownerId           String
+  propertyId        String?
+  periodMonth       Int
+  periodYear        Int
+  totalIncomeMinor  Int
+  totalExpenseMinor Int
+  netAmountMinor    Int
+  createdAt         DateTime @default(now())
+
+  owner        PropertyOwner          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  property     ManagedProperty?       @relation(fields: [propertyId], references: [id])
+  transactions StatementTransaction[]
+
+  @@unique([ownerId, propertyId, periodMonth, periodYear])
+  @@index([ownerId])
+  @@index([propertyId])
+}
+
+model StatementTransaction {
+  id          String   @id @default(cuid())
+  statementId String
+  // "INCOME" | "EXPENSE" — kept as a plain string rather than a two-value
+  // enum; the category field carries the real detail (Rent, Management Fee,
+  // Maintenance, etc.) and doesn't need a fixed vocabulary yet.
+  type        String
+  category    String
+  description String
+  amountMinor Int
+  occurredAt  DateTime
+  createdAt   DateTime @default(now())
+
+  statement LandlordStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  @@index([statementId])
+}
+
+model MoveIn {
+  id                String      @id @default(cuid())
+  tenantId          String
+  leaseId           String
+  unitId            String
+  stage             MoveInStage @default(STARTED)
+  depositRecordedAt DateTime?
+  rentRecordedAt    DateTime?
+  inspectionDoneAt  DateTime?
+  keysIssuedAt      DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id])
+  lease  Lease      @relation(fields: [leaseId], references: [id])
+  unit   RentalUnit @relation(fields: [unitId], references: [id])
+
+  @@index([tenantId])
+  @@index([leaseId])
+}
+
+model MoveOut {
+  id                   String       @id @default(cuid())
+  tenantId             String
+  leaseId              String
+  unitId               String
+  stage                MoveOutStage @default(NOTICE_RECEIVED)
+  noticeDate           DateTime?
+  moveOutDate          DateTime?
+  finalBalanceMinor    Int?
+  depositReturnedMinor Int?
+  inspectionDoneAt     DateTime?
+  keysReturnedAt       DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id])
+  lease  Lease      @relation(fields: [leaseId], references: [id])
+  unit   RentalUnit @relation(fields: [unitId], references: [id])
+
+  @@index([tenantId])
+  @@index([leaseId])
 }
