@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { createChargeSchema } from "@/server/modules/billing/schema";
-import { approveManualPayment, createChargeAndGenerateInvoices, rejectManualPayment } from "@/server/modules/billing/service";
+import {
+  approveManualPayment,
+  createChargeAndGenerateInvoices,
+  rejectManualPayment,
+  transitionDispute,
+} from "@/server/modules/billing/service";
 
 export interface CreateChargeFormState {
   error?: string;
@@ -63,4 +68,39 @@ export async function rejectManualPaymentAction(estateSlug: string, paymentId: s
   const { user, membership } = await requireEstatePermission(estateSlug, "payments:*");
   await rejectManualPayment(membership.estateId, user.id, paymentId);
   revalidatePath(`/${estateSlug}/billing`);
+}
+
+export interface TransitionDisputeFormState {
+  error?: string;
+}
+
+export async function transitionDisputeAction(
+  estateSlug: string,
+  disputeId: string,
+  _prevState: TransitionDisputeFormState,
+  formData: FormData,
+): Promise<TransitionDisputeFormState> {
+  const { user, membership } = await requireEstatePermission(estateSlug, "disputes:*");
+
+  const status = String(formData.get("status") ?? "");
+  const resolutionNote = String(formData.get("resolutionNote") ?? "").trim() || undefined;
+  if (!["UNDER_REVIEW", "RESOLVED", "ADJUSTED", "REJECTED"].includes(status)) {
+    return { error: "Choose a valid status." };
+  }
+
+  try {
+    await transitionDispute(
+      membership.estateId,
+      user.id,
+      disputeId,
+      status as "UNDER_REVIEW" | "RESOLVED" | "ADJUSTED" | "REJECTED",
+      resolutionNote,
+    );
+  } catch {
+    return { error: "A resolution note is required to close a dispute." };
+  }
+
+  revalidatePath(`/${estateSlug}/billing`);
+  revalidatePath(`/${estateSlug}/billing/disputes/${disputeId}`);
+  return {};
 }

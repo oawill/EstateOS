@@ -203,10 +203,11 @@ export async function applySuccessfulPayment(paymentId: string, actorUserId: str
     });
 
     const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: payment.invoiceId } });
+    // Already includes this payment — it was marked SUCCESSFUL above, before this query.
     const successfulPayments = await tx.payment.findMany({
       where: { invoiceId: invoice.id, status: "SUCCESSFUL" },
     });
-    const totalPaidKobo = successfulPayments.reduce((sum, p) => sum + p.amountKobo, 0) + payment.amountKobo;
+    const totalPaidKobo = successfulPayments.reduce((sum, p) => sum + p.amountKobo, 0);
     const newStatus = totalPaidKobo >= invoice.amountKobo ? "PAID" : "PARTIALLY_PAID";
 
     await tx.invoice.update({ where: { id: invoice.id }, data: { status: newStatus } });
@@ -220,13 +221,30 @@ export async function applySuccessfulPayment(paymentId: string, actorUserId: str
       },
     });
 
+    // Money paid beyond what the invoice actually owed never inflates
+    // income or vanishes — it becomes account credit the resident can see
+    // and a future invoice can draw down (see applyAccountCreditToInvoice).
+    const overpaidKobo = totalPaidKobo - invoice.amountKobo;
+    if (overpaidKobo > 0 && invoice.residentId) {
+      await tx.accountCredit.create({
+        data: {
+          estateId: payment.estateId,
+          residentId: invoice.residentId,
+          amountKobo: overpaidKobo,
+          remainingKobo: overpaidKobo,
+          sourcePaymentId: payment.id,
+          reason: `Overpayment on invoice ${invoice.invoiceNumber}`,
+        },
+      });
+    }
+
     await recordAudit({
       estateId: payment.estateId,
       actorUserId,
       action: "payment.succeeded",
       entityType: "Payment",
       entityId: payment.id,
-      after: { paymentId: payment.id, invoiceId: invoice.id, amountKobo: payment.amountKobo, newInvoiceStatus: newStatus },
+      after: { paymentId: payment.id, invoiceId: invoice.id, amountKobo: payment.amountKobo, newInvoiceStatus: newStatus, overpaidKobo: Math.max(overpaidKobo, 0) },
     });
 
     if (!invoice.residentId) return null;
@@ -410,4 +428,176 @@ export async function getFinanceSummary(estateId: string) {
     outstandingKobo,
     overdueCount,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Arrears & aging
+// ---------------------------------------------------------------------------
+
+export const AGING_BUCKETS = ["current", "d1_30", "d31_60", "d61_90", "d91_180", "d180_plus"] as const;
+export type AgingBucket = (typeof AGING_BUCKETS)[number];
+
+function bucketForDaysOverdue(daysOverdue: number): AgingBucket {
+  if (daysOverdue <= 0) return "current";
+  if (daysOverdue <= 30) return "d1_30";
+  if (daysOverdue <= 60) return "d31_60";
+  if (daysOverdue <= 90) return "d61_90";
+  if (daysOverdue <= 180) return "d91_180";
+  return "d180_plus";
+}
+
+export interface ResidentArrears {
+  residentId: string;
+  residentName: string;
+  unitLabel: string;
+  propertyAddress: string;
+  outstandingKobo: number;
+  oldestDueDate: Date;
+  buckets: Record<AgingBucket, number>;
+}
+
+/** Ages every open invoice by days-past-due, grouped per resident — pure aggregation over existing Invoice/Payment rows, no new ledger. */
+export async function getArrearsAging(estateId: string): Promise<{ residents: ResidentArrears[]; totals: Record<AgingBucket, number> }> {
+  const now = new Date();
+  const openInvoices = await prisma.invoice.findMany({
+    where: { estateId, status: { in: ["PENDING", "PARTIALLY_PAID"] }, residentId: { not: null } },
+    include: { payments: { where: { status: "SUCCESSFUL" } }, resident: true, unit: { include: { property: true } } },
+  });
+
+  const byResident = new Map<string, ResidentArrears>();
+  const totals: Record<AgingBucket, number> = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_180: 0, d180_plus: 0 };
+
+  for (const invoice of openInvoices) {
+    if (!invoice.resident) continue;
+    const paidKobo = invoice.payments.reduce((sum, p) => sum + p.amountKobo, 0);
+    const remainingKobo = invoice.amountKobo - paidKobo;
+    if (remainingKobo <= 0) continue;
+
+    const daysOverdue = Math.floor((now.getTime() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
+    const bucket = bucketForDaysOverdue(daysOverdue);
+
+    let entry = byResident.get(invoice.resident.id);
+    if (!entry) {
+      entry = {
+        residentId: invoice.resident.id,
+        residentName: `${invoice.resident.firstName} ${invoice.resident.lastName}`,
+        unitLabel: invoice.unit.label,
+        propertyAddress: invoice.unit.property.addressLabel,
+        outstandingKobo: 0,
+        oldestDueDate: invoice.dueDate,
+        buckets: { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_180: 0, d180_plus: 0 },
+      };
+      byResident.set(invoice.resident.id, entry);
+    }
+
+    entry.outstandingKobo += remainingKobo;
+    entry.buckets[bucket] += remainingKobo;
+    if (invoice.dueDate < entry.oldestDueDate) entry.oldestDueDate = invoice.dueDate;
+    totals[bucket] += remainingKobo;
+  }
+
+  const residents = Array.from(byResident.values()).sort((a, b) => b.outstandingKobo - a.outstandingKobo);
+  return { residents, totals };
+}
+
+// ---------------------------------------------------------------------------
+// Account credit (overpayments)
+// ---------------------------------------------------------------------------
+
+export async function listAccountCreditsForResident(estateId: string, residentId: string) {
+  return scoped(estateId).accountCredit.findMany({
+    where: { residentId } as never,
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getResidentCreditBalanceKobo(estateId: string, residentId: string): Promise<number> {
+  const credits = await prisma.accountCredit.aggregate({
+    where: { estateId, residentId, remainingKobo: { gt: 0 } },
+    _sum: { remainingKobo: true },
+  });
+  return credits._sum.remainingKobo ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Billing disputes ("Question This Charge")
+// ---------------------------------------------------------------------------
+
+export async function raiseBillingDispute(estateId: string, actorUserId: string, residentId: string, invoiceId: string, reason: string) {
+  const invoice = await scoped(estateId).invoice.findById(invoiceId);
+  if (!invoice || invoice.residentId !== residentId) throw new NotFoundError("Invoice");
+
+  const dispute = await scoped(estateId).billingDispute.create({ invoiceId, residentId, reason });
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "dispute.raised",
+    entityType: "BillingDispute",
+    entityId: dispute.id,
+    after: dispute,
+  });
+
+  return dispute;
+}
+
+const disputeWithRelations = Prisma.validator<Prisma.BillingDisputeDefaultArgs>()({
+  include: { invoice: { include: { unit: { include: { property: true } } } }, resident: true },
+});
+export type DisputeWithRelations = Prisma.BillingDisputeGetPayload<typeof disputeWithRelations>;
+
+export async function listDisputes(estateId: string, filter?: { status?: string }) {
+  return scoped(estateId).billingDispute.findMany<DisputeWithRelations>({
+    where: filter?.status ? ({ status: filter.status } as never) : undefined,
+    orderBy: { raisedAt: "desc" },
+    include: disputeWithRelations.include,
+  });
+}
+
+export async function getDispute(estateId: string, disputeId: string) {
+  return scoped(estateId).billingDispute.findById<DisputeWithRelations>(disputeId, { include: disputeWithRelations.include });
+}
+
+export async function listDisputesForResident(estateId: string, residentId: string) {
+  return scoped(estateId).billingDispute.findMany<DisputeWithRelations>({
+    where: { residentId } as never,
+    orderBy: { raisedAt: "desc" },
+    include: disputeWithRelations.include,
+  });
+}
+
+/** Forward-only status transition. Never deletes or mutates the underlying charge/invoice — a dispute is a record laid alongside it, not a removal of it. */
+export async function transitionDispute(
+  estateId: string,
+  actorUserId: string,
+  disputeId: string,
+  status: "UNDER_REVIEW" | "RESOLVED" | "ADJUSTED" | "REJECTED",
+  resolutionNote?: string,
+) {
+  const dispute = await scoped(estateId).billingDispute.findById(disputeId);
+  if (!dispute) throw new NotFoundError("BillingDispute");
+
+  const isTerminal = status === "RESOLVED" || status === "ADJUSTED" || status === "REJECTED";
+  if (isTerminal && !resolutionNote) {
+    throw new ForbiddenError("A resolution note is required to close a dispute");
+  }
+
+  const updated = await scoped(estateId).billingDispute.update(disputeId, {
+    status,
+    resolutionNote: resolutionNote ?? dispute.resolutionNote,
+    resolvedByUserId: isTerminal ? actorUserId : dispute.resolvedByUserId,
+    resolvedAt: isTerminal ? new Date() : dispute.resolvedAt,
+  });
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "dispute.status_changed",
+    entityType: "BillingDispute",
+    entityId: disputeId,
+    before: { status: dispute.status },
+    after: { status: updated.status, resolutionNote: updated.resolutionNote },
+  });
+
+  return updated;
 }

@@ -5,19 +5,21 @@ import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { INVOICE_STATUS_TONE } from "@/lib/statusTones";
-import { getFinanceSummary, listCharges, listInvoices, listPendingManualPayments } from "@/server/modules/billing/service";
+import { getFinanceSummary, listCharges, listDisputes, listInvoices, listPendingManualPayments } from "@/server/modules/billing/service";
 import { getEstateLocale } from "@/server/modules/estates/service";
+import { DISPUTE_STATUS_TONE } from "@/lib/statusTones";
 import { approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
 
 export default async function BillingPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
   const { membership } = await guardPage(() => requireEstatePermission(estateSlug, "invoices:*"));
 
-  const [summary, charges, invoices, pendingManualPayments, estateLocale] = await Promise.all([
+  const [summary, charges, invoices, pendingManualPayments, openDisputes, estateLocale] = await Promise.all([
     getFinanceSummary(membership.estateId),
     listCharges(membership.estateId),
     listInvoices(membership.estateId),
     listPendingManualPayments(membership.estateId),
+    listDisputes(membership.estateId, { status: "OPEN" }),
     getEstateLocale(membership.estateId),
   ]);
   const money = (amountKobo: number) => formatMoney(amountKobo, estateLocale.currency, estateLocale.locale);
@@ -26,9 +28,14 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Billing</h1>
-        <Link href={`/${estateSlug}/billing/charges/new`}>
-          <Button>Create charge</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href={`/${estateSlug}/billing/arrears`} className="text-sm font-medium text-primary hover:underline">
+            View arrears &amp; aging →
+          </Link>
+          <Link href={`/${estateSlug}/billing/charges/new`}>
+            <Button>Create charge</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
@@ -38,6 +45,32 @@ export default async function BillingPage({ params }: { params: Promise<{ estate
         <KpiCard tone="warning" label="Outstanding" value={money(summary.outstandingKobo)} />
         <KpiCard tone="danger" label="Overdue invoices" value={summary.overdueCount} />
       </div>
+
+      {openDisputes.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-medium">Questioned charges</h2>
+          {openDisputes.map((dispute) => (
+            <Card key={dispute.id}>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">
+                    {dispute.resident.firstName} {dispute.resident.lastName} · Invoice {dispute.invoice.invoiceNumber}
+                  </p>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    {dispute.invoice.unit.property.addressLabel} · &quot;{dispute.reason}&quot;
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge tone={DISPUTE_STATUS_TONE[dispute.status]}>{dispute.status.replaceAll("_", " ")}</Badge>
+                  <Link href={`/${estateSlug}/billing/disputes/${dispute.id}`}>
+                    <Button variant="secondary">Review</Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </section>
+      )}
 
       {pendingManualPayments.length > 0 && (
         <section className="space-y-3">

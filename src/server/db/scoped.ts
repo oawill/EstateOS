@@ -1,6 +1,8 @@
 import type {
+  AccountCredit,
   Announcement,
   AvailabilityBlock,
+  BillingDispute,
   Block,
   Charge,
   ClassifiedCategory,
@@ -15,6 +17,7 @@ import type {
   CommunitySavedListing,
   CommunitySavedPost,
   CommunitySettings,
+  EstateOnboarding,
   EventRsvp,
   GateEntry,
   Guest,
@@ -201,6 +204,27 @@ export function scoped(estateId: string) {
       Omit<Prisma.ReceiptUncheckedCreateInput, "estateId" | "id" | "issuedAt">,
       Prisma.ReceiptUpdateInput
     >(prisma.receipt, "Receipt", estateId),
+
+    accountCredit: makeScopedDelegate<
+      Prisma.AccountCreditWhereInput,
+      AccountCredit,
+      Omit<Prisma.AccountCreditUncheckedCreateInput, "estateId" | "id" | "createdAt">,
+      Prisma.AccountCreditUpdateInput
+    >(prisma.accountCredit, "AccountCredit", estateId),
+
+    billingDispute: makeScopedDelegate<
+      Prisma.BillingDisputeWhereInput,
+      BillingDispute,
+      Omit<Prisma.BillingDisputeUncheckedCreateInput, "estateId" | "id" | "raisedAt">,
+      Prisma.BillingDisputeUncheckedUpdateInput
+    >(prisma.billingDispute, "BillingDispute", estateId),
+
+    estateOnboarding: makeScopedDelegate<
+      Prisma.EstateOnboardingWhereInput,
+      EstateOnboarding,
+      Omit<Prisma.EstateOnboardingUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.EstateOnboardingUncheckedUpdateInput
+    >(prisma.estateOnboarding, "EstateOnboarding", estateId),
 
     visitorPass: makeScopedDelegate<
       Prisma.VisitorPassWhereInput,

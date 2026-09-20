@@ -21,6 +21,7 @@ export type Permission =
   | "invoices:*"
   | "payments:*"
   | "receipts:*"
+  | "disputes:*"
   | "reports:read"
   | "utilities:*"
   | "vendors:*"
@@ -35,6 +36,7 @@ export type Permission =
   | "own-visitors:*"
   | "own-maintenance:*"
   | "own-vehicles:*"
+  | "own-disputes:*"
   | "announcements:read"
   | "assigned-workorders:read"
   | "assigned-workorders:update"
@@ -70,6 +72,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "invoices:*",
     "payments:*",
     "receipts:*",
+    "disputes:*",
     "maintenance:*",
     "utilities:*",
     "vendors:*",
@@ -95,7 +98,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "shortlet-maintenance:*",
   ],
 
-  [Role.FINANCE]: ["charges:*", "invoices:*", "payments:*", "receipts:*", "reports:read"],
+  [Role.FINANCE]: ["charges:*", "invoices:*", "payments:*", "receipts:*", "disputes:*", "reports:read"],
 
   [Role.FACILITY_MANAGER]: ["maintenance:*", "utilities:*", "vendors:*", "workorders:*"],
 
@@ -109,6 +112,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "own-visitors:*",
     "own-maintenance:*",
     "own-vehicles:*",
+    "own-disputes:*",
     "announcements:read",
     "community-posts:*",
     "community-comments:*",

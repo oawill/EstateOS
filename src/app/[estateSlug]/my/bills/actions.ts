@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { NotFoundError } from "@/lib/errors";
 import { getResidentByUserId } from "@/server/modules/residents/service";
-import { initiatePaystackPayment, recordManualPayment } from "@/server/modules/billing/service";
+import { initiatePaystackPayment, raiseBillingDispute, recordManualPayment } from "@/server/modules/billing/service";
 import { PaystackNotConfiguredError } from "@/server/modules/billing/paystack";
 import { recordManualPaymentSchema } from "@/server/modules/billing/schema";
 
@@ -73,4 +73,27 @@ export async function recordManualPaymentAction(
   await recordManualPayment(membership.estateId, resident.id, user.id, parsed.data);
   revalidatePath(`/${estateSlug}/my/bills`);
   return {};
+}
+
+export interface RaiseDisputeFormState {
+  error?: string;
+  success?: boolean;
+}
+
+export async function raiseDisputeAction(
+  estateSlug: string,
+  _prevState: RaiseDisputeFormState,
+  formData: FormData,
+): Promise<RaiseDisputeFormState> {
+  const { user, membership, resident } = await requireOwnResident(estateSlug, "own-payments:*");
+
+  const invoiceId = String(formData.get("invoiceId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!invoiceId || reason.length < 5) {
+    return { error: "Tell us a bit more about why you're questioning this charge." };
+  }
+
+  await raiseBillingDispute(membership.estateId, user.id, resident.id, invoiceId, reason);
+  revalidatePath(`/${estateSlug}/my/bills`);
+  return { success: true };
 }

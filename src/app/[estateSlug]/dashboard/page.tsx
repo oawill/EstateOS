@@ -388,8 +388,15 @@ async function ResidentOverview({
   );
 }
 
-export default async function EstateDashboardPage({ params }: { params: Promise<{ estateSlug: string }> }) {
+export default async function EstateDashboardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ estateSlug: string }>;
+  searchParams: Promise<{ launched?: string }>;
+}) {
   const { estateSlug } = await params;
+  const { launched } = await searchParams;
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
   const estateLocale = await getEstateLocale(membership.estateId);
   const hour = new Date().getHours();
@@ -397,6 +404,16 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
 
   return (
     <div className="space-y-6">
+      {launched === "1" && membership.role === Role.ESTATE_ADMIN && (
+        <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm">
+          <p className="font-medium text-success">{membership.estateName} is live on NidraQ.</p>
+          <p className="mt-1 text-foreground-muted">
+            Next: invite remaining residents, finish utility setup, add vendors, and set an annual budget — all from
+            this dashboard, whenever you&apos;re ready.
+          </p>
+        </div>
+      )}
+
       <div>
         <h1 className="text-xl font-semibold">
           {timeOfDayGreeting}, {user.name.split(" ")[0]}

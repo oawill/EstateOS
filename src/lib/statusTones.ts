@@ -1,4 +1,5 @@
 import type {
+  BillingDisputeStatus,
   ClassifiedListingStatus,
   CommunityReportStatus,
   DemoRequestStatus,
@@ -67,4 +68,12 @@ export const COMMUNITY_REPORT_STATUS_TONE: Record<CommunityReportStatus, Tone> =
   REVIEWED: "info",
   ACTIONED: "success",
   DISMISSED: "neutral",
+};
+
+export const DISPUTE_STATUS_TONE: Record<BillingDisputeStatus, Tone> = {
+  OPEN: "warning",
+  UNDER_REVIEW: "info",
+  RESOLVED: "success",
+  ADJUSTED: "success",
+  REJECTED: "danger",
 };

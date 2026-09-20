@@ -4,7 +4,14 @@ import { useActionState, useState } from "react";
 import { Badge, Button, Card, FormError, Input, Label } from "@/components/shared/ui";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { INVOICE_STATUS_TONE as STATUS_TONE } from "@/lib/statusTones";
-import { payWithPaystackAction, recordManualPaymentAction, type PayWithPaystackFormState, type RecordManualPaymentFormState } from "./actions";
+import {
+  payWithPaystackAction,
+  raiseDisputeAction,
+  recordManualPaymentAction,
+  type PayWithPaystackFormState,
+  type RaiseDisputeFormState,
+  type RecordManualPaymentFormState,
+} from "./actions";
 
 export interface InvoiceSummary {
   id: string;
@@ -18,6 +25,7 @@ export interface InvoiceSummary {
 
 const payInitial: PayWithPaystackFormState = {};
 const manualInitial: RecordManualPaymentFormState = {};
+const disputeInitial: RaiseDisputeFormState = {};
 
 export function InvoiceCard({
   estateSlug,
@@ -31,10 +39,13 @@ export function InvoiceCard({
   locale?: string;
 }) {
   const [showManualForm, setShowManualForm] = useState(false);
+  const [showDisputeForm, setShowDisputeForm] = useState(false);
   const payAction = payWithPaystackAction.bind(null, estateSlug);
   const [payState, payFormAction, payPending] = useActionState(payAction, payInitial);
   const manualAction = recordManualPaymentAction.bind(null, estateSlug);
   const [manualState, manualFormAction, manualPending] = useActionState(manualAction, manualInitial);
+  const disputeAction = raiseDisputeAction.bind(null, estateSlug);
+  const [disputeState, disputeFormAction, disputePending] = useActionState(disputeAction, disputeInitial);
 
   const isSettled = invoice.status === "PAID" || invoice.status === "CANCELLED";
 
@@ -94,6 +105,35 @@ export function InvoiceCard({
           )}
         </div>
       )}
+
+      <div className="mt-3 border-t border-border pt-3">
+        {disputeState.success ? (
+          <p className="text-sm text-success">Thanks — your question has been sent to the estate finance team.</p>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setShowDisputeForm((v) => !v)}
+              className="text-xs font-medium text-foreground-muted hover:text-foreground hover:underline"
+            >
+              Question this charge
+            </button>
+            {showDisputeForm && (
+              <form action={disputeFormAction} className="mt-3 space-y-3 rounded-lg bg-surface-muted p-4">
+                <FormError message={disputeState.error} />
+                <input type="hidden" name="invoiceId" value={invoice.id} />
+                <div>
+                  <Label htmlFor={`reason-${invoice.id}`}>What&apos;s wrong with this charge?</Label>
+                  <Input id={`reason-${invoice.id}`} name="reason" placeholder="e.g. I already moved out in June" required />
+                </div>
+                <Button type="submit" variant="secondary" disabled={disputePending}>
+                  {disputePending ? "Sending…" : "Send to Finance"}
+                </Button>
+              </form>
+            )}
+          </>
+        )}
+      </div>
     </Card>
   );
 }

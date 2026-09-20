@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/shared/ui";
 import { getCurrentUser } from "@/server/auth/session";
 import { listMembershipsForUser } from "@/server/modules/estates/service";
+import { findResumableOnboardingRoute } from "@/server/modules/onboarding/service";
 import { LandingPage } from "./LandingPage";
 
 export default async function HomePage() {
@@ -13,7 +14,11 @@ export default async function HomePage() {
   const memberships = await listMembershipsForUser(user.id);
 
   if (memberships.length === 0) redirect("/onboarding/new-estate");
-  if (memberships.length === 1) redirect(`/${memberships[0].estate.slug}/dashboard`);
+
+  if (memberships.length === 1) {
+    const resumeRoute = await findResumableOnboardingRoute(user.id);
+    redirect(resumeRoute ?? `/${memberships[0].estate.slug}/dashboard`);
+  }
 
   return (
     <main className="mx-auto w-full max-w-md px-4 py-12">
