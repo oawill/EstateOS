@@ -24,5 +24,6 @@ export async function generateStatementAction(_prev: ActionState, formData: Form
   }
 
   revalidatePath("/landlord");
+  revalidatePath("/owner/reports");
   return {};
 }

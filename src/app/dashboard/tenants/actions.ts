@@ -501,6 +501,7 @@ export async function updatePayoutDetailsAction(_prev: ActionState, formData: Fo
     return formError(error);
   }
   revalidatePath("/landlord");
+  revalidatePath("/owner/more");
   return {};
 }
 

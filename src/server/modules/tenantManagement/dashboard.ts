@@ -1,6 +1,6 @@
 import { prisma } from "@/server/db/client";
 import type { CurrentUser } from "@/server/auth/session";
-import { getAuthorizedPropertyIds, getAccessibleContext } from "./access";
+import { assertPropertyAccess, getAuthorizedPropertyIds, getAccessibleContext } from "./access";
 import { getExpiringLeases } from "./lease";
 import { recomputeOverdueObligations, getCollectionRate } from "./payments";
 import { calculateManagementFeeMinor } from "./managementFee";
@@ -155,5 +155,52 @@ export async function getDashboardKpis(actor: CurrentUser, period: DashboardPeri
     landlordSettlementsDueMinor: settlementsDueAgg._sum.netAmountMinor ?? 0,
     recentPayments,
     expiringLeases: { in30: expiring30, in60: expiring60, in90: expiring90 },
+  };
+}
+
+/**
+ * The same rent-expected/collected/outstanding aggregation as
+ * getDashboardKpis, narrowed to one property — used by the Owner app's
+ * property detail Financials tab. Deliberately reuses the identical query
+ * shape (RentObligation/RentPayment aggregates for the period) rather than
+ * a separate calculation, so a property's number here always agrees with
+ * its contribution to the portfolio-wide KPI.
+ */
+export async function getPropertyFinancialSummary(actor: CurrentUser, propertyId: string, period: DashboardPeriod = "month") {
+  await assertPropertyAccess(actor, propertyId);
+  await recomputeOverdueObligations();
+
+  const { start: periodStart, end: periodEnd } = resolvePeriodRange(period);
+  const unitWhere = { propertyId };
+
+  const [obligationsThisPeriod, paymentsThisPeriod, outstandingAgg, overdueCount, maintenanceExpenseAgg] = await Promise.all([
+    prisma.rentObligation.aggregate({
+      _sum: { amountDueMinor: true },
+      where: { dueDate: { gte: periodStart, lt: periodEnd }, lease: { unit: unitWhere } },
+    }),
+    prisma.rentPayment.aggregate({
+      _sum: { amountMinor: true },
+      where: { paidAt: { gte: periodStart, lt: periodEnd }, status: "COMPLETED", lease: { unit: unitWhere } },
+    }),
+    prisma.rentObligation.aggregate({
+      _sum: { amountDueMinor: true, amountPaidMinor: true },
+      where: { status: { in: ["DUE", "OVERDUE", "PARTIALLY_PAID"] }, lease: { unit: unitWhere } },
+    }),
+    prisma.rentObligation.count({ where: { status: "OVERDUE", lease: { unit: unitWhere } } }),
+    prisma.maintenanceExpense.aggregate({
+      _sum: { finalAmountMinor: true },
+      where: { request: { propertyId }, isPaid: true },
+    }),
+  ]);
+
+  const outstandingMinor = (outstandingAgg._sum.amountDueMinor ?? 0) - (outstandingAgg._sum.amountPaidMinor ?? 0);
+
+  return {
+    period,
+    rentExpectedMinor: obligationsThisPeriod._sum.amountDueMinor ?? 0,
+    rentCollectedMinor: paymentsThisPeriod._sum.amountMinor ?? 0,
+    outstandingMinor: Math.max(outstandingMinor, 0),
+    overdueCount,
+    maintenanceExpensePaidMinor: maintenanceExpenseAgg._sum.finalAmountMinor ?? 0,
   };
 }
