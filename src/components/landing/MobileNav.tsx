@@ -7,6 +7,7 @@ import { Button } from "@/components/shared/ui";
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How It Works" },
+  { href: "/estate-management", label: "Estate Management" },
   { href: "/resident-app", label: "Resident App" },
   { href: "/tenant-management", label: "Tenant Management" },
   { href: "/shortlet-management", label: "Shortlet Management" },

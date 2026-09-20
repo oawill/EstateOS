@@ -92,11 +92,11 @@ export default async function EstateLayout({
     nav.push({ href: "shortlet", label: "Shortlet", group: "Shortlet" });
   }
 
-  // Only residents get the switcher, and only when it would do something —
-  // a manager/security/vendor account is never expected to hold more than
-  // one estate membership today, so this stays resident-only rather than
-  // adding UI surface for a case that can't otherwise occur.
-  const otherEstateMemberships = isResident ? await listMembershipsForUser(user.id) : [];
+  // Shown to anyone with more than one estate membership — a resident with
+  // two properties, or an estate management company's staff member
+  // assigned across several estates. Never assumed; always re-derived from
+  // real EstateMember rows for this user.
+  const otherEstateMemberships = await listMembershipsForUser(user.id);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -105,7 +105,7 @@ export default async function EstateLayout({
           <div className="flex items-center gap-2.5">
             <Image src="/logo.svg" alt="NidraQ" width={32} height={32} className="rounded-md" />
             <div>
-              {isResident && otherEstateMemberships.length > 1 ? (
+              {otherEstateMemberships.length > 1 ? (
                 <EstateSwitcher memberships={otherEstateMemberships} currentSlug={estateSlug} />
               ) : (
                 <p className="text-sm font-semibold">{membership.estateName}</p>

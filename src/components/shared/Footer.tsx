@@ -9,6 +9,7 @@ import { BRAND } from "@/lib/brand";
 const LINKS = [
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How It Works" },
+  { href: "/estate-management", label: "Estate Management" },
   { href: "/shortlet-management", label: "Shortlet" },
   { href: "/security", label: "Security" },
   { href: "/login", label: "Log In" },

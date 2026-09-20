@@ -8,8 +8,9 @@ import { prisma } from "@/server/db/client";
 import { formatMoney } from "@/lib/utils";
 import { getFinanceSummary, getResidentOutstandingBalanceKobo, listInvoicesForResident } from "@/server/modules/billing/service";
 import { getEstateLocale } from "@/server/modules/estates/service";
+import { getCommandCenterOverview } from "@/server/modules/estates/commandCenter";
 import { getResidentByUserId } from "@/server/modules/residents/service";
-import { countCurrentlyCheckedIn, listPassesForResident, passStatus } from "@/server/modules/visitors/service";
+import { listPassesForResident, passStatus } from "@/server/modules/visitors/service";
 import { getMaintenanceSummary, listTicketsForResident } from "@/server/modules/maintenance/service";
 import { countUnreadNotifications, listAnnouncements } from "@/server/modules/announcements/service";
 
@@ -19,37 +20,161 @@ interface EstateLocale {
   timezone: string;
 }
 
-async function AdminOverview({ estateId, estateLocale }: { estateId: string; estateLocale: EstateLocale }) {
-  const [propertyCount, unitCount, residentCount, occupiedUnits, financeSummary, checkedInCount, maintenanceSummary] =
-    await Promise.all([
-      prisma.property.count({ where: { estateId } }),
-      prisma.unit.count({ where: { estateId } }),
-      prisma.resident.count({ where: { estateId } }),
-      prisma.unit.count({ where: { estateId, occupancyStatus: "OCCUPIED" } }),
-      getFinanceSummary(estateId),
-      countCurrentlyCheckedIn(estateId),
-      getMaintenanceSummary(estateId),
-    ]);
+/**
+ * The Estate Command Center home for ESTATE_ADMIN — replaces the old flat
+ * KPI grid with a prioritized view: the KPI strip a manager actually
+ * checks first, a real Needs Attention queue generated from live data
+ * (never a fixed/fake list), Today's gate activity, and a financial
+ * snapshot. Every number comes from getCommandCenterOverview(), which
+ * itself only re-reads the existing billing/maintenance/visitor/security/
+ * community services — no parallel calculation.
+ */
+async function AdminOverview({
+  estateId,
+  estateSlug,
+  estateName,
+  estateLocale,
+}: {
+  estateId: string;
+  estateSlug: string;
+  estateName: string;
+  estateLocale: EstateLocale;
+}) {
+  const overview = await getCommandCenterOverview(estateId);
   const money = (amountKobo: number) => formatMoney(amountKobo, estateLocale.currency, estateLocale.locale);
 
-  const stats: { label: string; value: string | number; tone?: KpiTone }[] = [
-    { label: "Properties", value: propertyCount },
-    { label: "Units", value: unitCount },
-    { label: "Occupied units", value: occupiedUnits },
-    { label: "Registered residents", value: residentCount, tone: "gray" },
-    { label: "Collected this month", value: money(financeSummary.collectionsThisMonthKobo), tone: "success" },
-    { label: "Outstanding", value: money(financeSummary.outstandingKobo), tone: "warning" },
-    { label: "Overdue invoices", value: financeSummary.overdueCount, tone: "danger" },
-    { label: "Visitors currently inside", value: checkedInCount, tone: "gray" },
-    { label: "Open maintenance tickets", value: maintenanceSummary.openCount, tone: "warning" },
-    { label: "Overdue maintenance tickets", value: maintenanceSummary.overdueCount, tone: "danger" },
-  ];
-
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      {stats.map((s) => (
-        <KpiCard key={s.label} label={s.label} value={s.value} tone={s.tone} />
-      ))}
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <KpiCard label="Collected This Month" value={money(overview.kpis.collectedThisMonthKobo)} tone="success" />
+        <KpiCard label="Outstanding" value={money(overview.kpis.outstandingKobo)} tone="warning" />
+        <KpiCard label="Occupied Homes" value={`${overview.kpis.occupiedUnits} / ${overview.kpis.unitCount}`} />
+        <KpiCard label="Open Requests" value={overview.kpis.openRequests} tone={overview.kpis.openRequests > 0 ? "warning" : undefined} />
+        <KpiCard label="Visitors Today" value={overview.kpis.visitorsToday} />
+        <KpiCard label="Open Security Incidents" value={overview.kpis.openIncidents} tone={overview.kpis.openIncidents > 0 ? "danger" : undefined} />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Needs Your Attention</p>
+        {overview.attention.length === 0 ? (
+          <Card>
+            <p className="text-sm text-foreground-muted">Nothing needs your attention right now — the estate is running smoothly.</p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {overview.attention.map((item) => (
+              <Link key={item.id} href={`/${estateSlug}/${item.href}`}>
+                <Card
+                  className={`flex items-center justify-between gap-3 transition-shadow hover:shadow-md ${
+                    item.urgency === "high" ? "border-danger/30 bg-danger/5" : item.urgency === "medium" ? "border-warning/30 bg-warning/5" : undefined
+                  }`}
+                >
+                  <div>
+                    <p className="text-sm font-semibold">{item.title}</p>
+                    <p className="text-xs text-foreground-muted">{item.detail}</p>
+                  </div>
+                  <span className="whitespace-nowrap text-sm font-medium text-primary">{item.ctaLabel} →</span>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card>
+          <p className="text-sm font-medium">Today at {estateName}</p>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <Link href={`/${estateSlug}/gate`}>
+              <div className="rounded-lg p-2 hover:bg-surface-muted">
+                <p className="text-xl font-semibold">{overview.today.expectedVisitors}</p>
+                <p className="text-[11px] text-foreground-muted">Expected</p>
+              </div>
+            </Link>
+            <Link href={`/${estateSlug}/gate/inside`}>
+              <div className="rounded-lg p-2 hover:bg-surface-muted">
+                <p className="text-xl font-semibold">{overview.today.currentlyInside}</p>
+                <p className="text-[11px] text-foreground-muted">Inside</p>
+              </div>
+            </Link>
+            <Link href={`/${estateSlug}/facility`}>
+              <div className="rounded-lg p-2 hover:bg-surface-muted">
+                <p className="text-xl font-semibold">{overview.today.openMaintenance}</p>
+                <p className="text-[11px] text-foreground-muted">Open Maintenance</p>
+              </div>
+            </Link>
+          </div>
+        </Card>
+
+        <Card>
+          <p className="text-sm font-medium">Financial Overview</p>
+          <div className="mt-3 flex items-center gap-3">
+            <div
+              className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full"
+              style={{
+                background:
+                  overview.finance.collectionRate !== null
+                    ? `conic-gradient(var(--color-success) 0% ${overview.finance.collectionRate}%, var(--color-surface-muted) ${overview.finance.collectionRate}% 100%)`
+                    : "var(--color-surface-muted)",
+              }}
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-surface text-xs font-semibold">
+                {overview.finance.collectionRate !== null ? `${overview.finance.collectionRate}%` : "—"}
+              </div>
+            </div>
+            <div className="text-xs">
+              <p className="font-medium text-success">{money(overview.finance.collectionsThisMonthKobo)} collected</p>
+              <p className="text-foreground-muted">{money(overview.finance.outstandingKobo)} outstanding</p>
+            </div>
+          </div>
+          <Link href={`/${estateSlug}/billing`} className="mt-3 inline-block text-sm font-medium text-primary hover:underline">
+            View Service Charges →
+          </Link>
+        </Card>
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">Security Today</p>
+          <Link href={`/${estateSlug}/gate`} className="text-xs font-medium text-primary hover:underline">
+            Open Security Operations →
+          </Link>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <HomeMiniStat label="Expected" value={overview.security.expectedVisitors} />
+          <HomeMiniStat label="Currently Inside" value={overview.security.currentlyInside} />
+          <HomeMiniStat label="Awaiting Approval" value={overview.security.awaitingApproval} />
+          <HomeMiniStat label="Open Incidents" value={overview.security.openIncidents} tone={overview.security.openIncidents > 0 ? "danger" : undefined} />
+        </div>
+      </Card>
+
+      {overview.recentAnnouncements.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Recent Estate Updates</p>
+            <Link href={`/${estateSlug}/announcements`} className="text-xs font-medium text-primary hover:underline">
+              View all →
+            </Link>
+          </div>
+          <div className="mt-2 space-y-2">
+            {overview.recentAnnouncements.map((a) => (
+              <div key={a.id} className="text-sm">
+                <p className="font-medium">{a.title}</p>
+                <p className="line-clamp-1 text-xs text-foreground-muted">{a.body}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function HomeMiniStat({ label, value, tone }: { label: string; value: number; tone?: "danger" }) {
+  return (
+    <div className="rounded-lg bg-surface-muted px-3 py-2 text-center">
+      <p className={`text-lg font-semibold ${tone === "danger" ? "text-danger" : ""}`}>{value}</p>
+      <p className="text-[11px] text-foreground-muted">{label}</p>
     </div>
   );
 }
@@ -267,9 +392,8 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
   const { estateSlug } = await params;
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
   const estateLocale = await getEstateLocale(membership.estateId);
-  const isResidentRole = membership.role === Role.RESIDENT;
   const hour = new Date().getHours();
-  const timeOfDayGreeting = isResidentRole ? (hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening") : "Good day";
+  const timeOfDayGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="space-y-6">
@@ -277,11 +401,13 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
         <h1 className="text-xl font-semibold">
           {timeOfDayGreeting}, {user.name.split(" ")[0]}
         </h1>
-        <p className="text-sm text-foreground-muted">{membership.estateName}</p>
+        <p className="text-sm text-foreground-muted">
+          {membership.role === Role.RESIDENT ? membership.estateName : `Here's what's happening across ${membership.estateName} today.`}
+        </p>
       </div>
 
       {membership.role === Role.ESTATE_ADMIN && (
-        <AdminOverview estateId={membership.estateId} estateLocale={estateLocale} />
+        <AdminOverview estateId={membership.estateId} estateSlug={estateSlug} estateName={membership.estateName} estateLocale={estateLocale} />
       )}
 
       {membership.role === Role.FINANCE && (
