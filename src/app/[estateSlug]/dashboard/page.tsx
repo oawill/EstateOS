@@ -6,7 +6,7 @@ import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstateMember } from "@/server/auth/session";
 import { prisma } from "@/server/db/client";
 import { formatMoney } from "@/lib/utils";
-import { getFinanceSummary, getResidentOutstandingBalanceKobo } from "@/server/modules/billing/service";
+import { getFinanceSummary, getResidentOutstandingBalanceKobo, listInvoicesForResident } from "@/server/modules/billing/service";
 import { getEstateLocale } from "@/server/modules/estates/service";
 import { getResidentByUserId } from "@/server/modules/residents/service";
 import { countCurrentlyCheckedIn, listPassesForResident, passStatus } from "@/server/modules/visitors/service";
@@ -16,6 +16,7 @@ import { countUnreadNotifications, listAnnouncements } from "@/server/modules/an
 interface EstateLocale {
   currency: string;
   locale: string;
+  timezone: string;
 }
 
 async function AdminOverview({ estateId, estateLocale }: { estateId: string; estateLocale: EstateLocale }) {
@@ -89,13 +90,37 @@ async function FacilityOverview({ estateId, estateSlug }: { estateId: string; es
   );
 }
 
-function QuickAction({ href, label }: { href: string; label: string }) {
+const QUICK_ACTION_ICONS: Record<string, React.ReactNode> = {
+  visitor: <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" strokeLinecap="round" strokeLinejoin="round" />,
+  pay: <path d="M3 8h18M3 8a2 2 0 012-2h14a2 2 0 012 2M3 8v8a2 2 0 002 2h14a2 2 0 002-2V8M7 15h4" strokeLinecap="round" strokeLinejoin="round" />,
+  issue: <path d="M14.7 6.3a4 4 0 01-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 015.4-5.4l-3-3z" strokeLinecap="round" strokeLinejoin="round" />,
+  emergency: <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" strokeLinecap="round" strokeLinejoin="round" />,
+};
+
+function QuickAction({ href, label, icon, danger }: { href: string; label: string; icon: string; danger?: boolean }) {
   return (
     <Link href={href}>
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-xl border border-border bg-surface p-4 text-center shadow-sm transition-shadow hover:shadow-md">
-        <p className="text-sm font-medium">{label}</p>
+      <div
+        className={`flex h-full flex-col items-center justify-center gap-2 rounded-xl border p-4 text-center shadow-sm transition-shadow hover:shadow-md ${
+          danger ? "border-danger/30 bg-danger/5" : "border-border bg-surface"
+        }`}
+      >
+        <svg viewBox="0 0 24 24" className={`h-6 w-6 ${danger ? "text-danger" : "text-primary"}`} fill="none" stroke="currentColor" strokeWidth="1.8">
+          {QUICK_ACTION_ICONS[icon]}
+        </svg>
+        <p className={`text-sm font-medium ${danger ? "text-danger" : ""}`}>{label}</p>
       </div>
     </Link>
+  );
+}
+
+function HomeStat({ label, value, tone }: { label: string; value: string; tone?: "success" | "warning" | "danger" }) {
+  const toneClass = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : tone === "danger" ? "text-danger" : "text-foreground";
+  return (
+    <div className="rounded-xl bg-surface-muted px-3 py-2.5">
+      <p className="text-[11px] text-foreground-muted">{label}</p>
+      <p className={`mt-0.5 text-sm font-semibold ${toneClass}`}>{value}</p>
+    </div>
   );
 }
 
@@ -119,7 +144,7 @@ async function ResidentOverview({
     );
   }
 
-  const [outstandingKobo, unreadCount, occupancy, passes, tickets, announcements] = await Promise.all([
+  const [outstandingKobo, unreadCount, occupancy, passes, tickets, announcements, invoices] = await Promise.all([
     getResidentOutstandingBalanceKobo(estateId, resident.id),
     countUnreadNotifications(estateId, resident.id),
     prisma.occupancy.findFirst({
@@ -129,6 +154,7 @@ async function ResidentOverview({
     listPassesForResident(estateId, resident.id),
     listTicketsForResident(estateId, resident.id),
     listAnnouncements(estateId),
+    listInvoicesForResident(estateId, resident.id),
   ]);
 
   const money = (amountKobo: number) => formatMoney(amountKobo, estateLocale.currency, estateLocale.locale);
@@ -137,100 +163,94 @@ async function ResidentOverview({
     return status === "VALID" || status === "NOT_YET_STARTED";
   });
   const openTickets = tickets.filter((t) => t.status !== "RESOLVED" && t.status !== "CLOSED");
-  const latestAnnouncement = announcements[0];
+
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const todayEnd = new Date(todayStart.getTime() + 86_400_000);
+  const visitorsTodayCount = passes.filter((p) => p.startTime >= todayStart && p.startTime < todayEnd && !p.isRevoked).length;
+
+  const nextInvoice = invoices
+    .filter((i) => i.status === "PENDING" || i.status === "PARTIALLY_PAID")
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())[0];
+
+  const allGood = outstandingKobo === 0 && openTickets.length === 0;
+  const dateFormatter = new Intl.DateTimeFormat(estateLocale.locale, { month: "short", day: "numeric", timeZone: estateLocale.timezone });
 
   return (
     <div className="space-y-6">
-      {/* My Home */}
-      <Card>
-        <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted">My Home</p>
-        <p className="mt-1 text-lg font-semibold">{resident.firstName} {resident.lastName}</p>
-        {occupancy ? (
-          <p className="mt-0.5 text-sm text-foreground-muted">
-            {occupancy.unit.property.addressLabel}
-            {occupancy.unit.label ? ` · Unit ${occupancy.unit.label}` : ""} · {occupancy.role.replaceAll("_", " ")}
-          </p>
-        ) : (
-          <p className="mt-0.5 text-sm text-foreground-muted">No unit on file</p>
-        )}
-      </Card>
+      {/* Your Home */}
+      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-foreground-muted">Your Home</p>
+            {occupancy ? (
+              <p className="mt-1 text-lg font-semibold">
+                {occupancy.unit.property.addressLabel}
+                {occupancy.unit.label ? ` · Unit ${occupancy.unit.label}` : ""}
+              </p>
+            ) : (
+              <p className="mt-1 text-lg font-semibold">No unit on file</p>
+            )}
+          </div>
+          <Badge tone={allGood ? "success" : "warning"}>{allGood ? "All Good" : "Needs Attention"}</Badge>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <HomeStat label="Service Charges" value={outstandingKobo > 0 ? money(outstandingKobo) : "Paid ✓"} tone={outstandingKobo > 0 ? "warning" : "success"} />
+          <HomeStat label="Open Maintenance" value={String(openTickets.length)} tone={openTickets.length > 0 ? "warning" : undefined} />
+          <HomeStat label="Visitors Today" value={String(visitorsTodayCount)} />
+          <HomeStat label="Next Payment" value={nextInvoice ? dateFormatter.format(nextInvoice.dueDate) : "None due"} />
+        </div>
+      </div>
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <QuickAction href={`/${estateSlug}/visitors/new`} label="Request Gate Pass" />
-        <QuickAction href={`/${estateSlug}/my/bills`} label="Pay Bill" />
-        <QuickAction href={`/${estateSlug}/maintenance/new`} label="Report Issue" />
-        <QuickAction href={`/${estateSlug}/my/bills`} label="View Statement" />
+        <QuickAction href={`/${estateSlug}/visitors/new`} label="Invite Visitor" icon="visitor" />
+        <QuickAction href={`/${estateSlug}/my/bills`} label="Pay Bill" icon="pay" />
+        <QuickAction href={`/${estateSlug}/maintenance/new`} label="Report Issue" icon="issue" />
+        <QuickAction href={`/${estateSlug}/emergency`} label="Emergency" icon="emergency" danger />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Bills & Payments */}
-        <Card>
-          <p className="text-sm font-medium">Bills &amp; Payments</p>
-          <p className={`mt-2 text-2xl font-semibold ${outstandingKobo > 0 ? "text-warning" : "text-success"}`}>
-            {money(outstandingKobo)}
-          </p>
-          <p className="text-xs text-foreground-muted">{outstandingKobo > 0 ? "Outstanding balance" : "You're all caught up"}</p>
-          <Link href={`/${estateSlug}/my/bills`}>
-            <Button className="mt-4 w-full" variant="secondary">
-              {outstandingKobo > 0 ? "Pay now" : "View bills"}
-            </Button>
-          </Link>
-        </Card>
-
-        {/* Visitors & Gate Passes */}
-        <Card>
+      {/* Visitors & Gate Passes */}
+      <Card className="flex items-center justify-between">
+        <div>
           <p className="text-sm font-medium">Visitors &amp; Gate Passes</p>
-          {upcomingOrActivePasses.length > 0 ? (
-            <>
-              <p className="mt-2 text-2xl font-semibold">{upcomingOrActivePasses.length}</p>
-              <p className="text-xs text-foreground-muted">Upcoming or active passes</p>
-            </>
-          ) : (
-            <p className="mt-2 text-sm text-foreground-muted">No upcoming visitors</p>
-          )}
-          <Link href={`/${estateSlug}/visitors`}>
-            <Button className="mt-4 w-full" variant="secondary">
-              {upcomingOrActivePasses.length > 0 ? "View passes" : "Invite Visitor"}
-            </Button>
-          </Link>
-        </Card>
+          <p className="mt-0.5 text-xs text-foreground-muted">
+            {upcomingOrActivePasses.length > 0
+              ? `${upcomingOrActivePasses.length} upcoming or active pass${upcomingOrActivePasses.length === 1 ? "" : "es"}`
+              : "No upcoming visitors"}
+          </p>
+        </div>
+        <Link href={`/${estateSlug}/visitors`}>
+          <Button variant="secondary">{upcomingOrActivePasses.length > 0 ? "View" : "Invite"}</Button>
+        </Link>
+      </Card>
 
-        {/* Maintenance */}
-        <Card>
-          <p className="text-sm font-medium">Maintenance</p>
-          {openTickets.length > 0 ? (
-            <>
-              <p className="mt-2 text-2xl font-semibold text-warning">{openTickets.length}</p>
-              <p className="text-xs text-foreground-muted">Open request{openTickets.length === 1 ? "" : "s"}</p>
-            </>
-          ) : (
-            <p className="mt-2 text-sm text-foreground-muted">No open requests</p>
-          )}
-          <Link href={`/${estateSlug}/maintenance`}>
-            <Button className="mt-4 w-full" variant="secondary">
-              {openTickets.length > 0 ? "Track requests" : "Report an Issue"}
-            </Button>
+      {/* Estate Updates */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm font-medium">Estate Updates</p>
+          <Link href={`/${estateSlug}/announcements`} className="text-xs font-medium text-primary hover:underline">
+            View all
           </Link>
-        </Card>
-
-        {/* Community */}
-        <Card>
-          <p className="text-sm font-medium">Community</p>
-          {latestAnnouncement ? (
-            <>
-              <p className="mt-2 text-sm font-medium">{latestAnnouncement.title}</p>
-              <p className="mt-0.5 line-clamp-2 text-xs text-foreground-muted">{latestAnnouncement.body}</p>
-            </>
-          ) : (
-            <p className="mt-2 text-sm text-foreground-muted">No announcements yet</p>
-          )}
-          <Link href={`/${estateSlug}/community`}>
-            <Button className="mt-4 w-full" variant="secondary">
-              View Community
-            </Button>
-          </Link>
-        </Card>
+        </div>
+        {announcements.length === 0 ? (
+          <Card>
+            <p className="text-sm text-foreground-muted">No estate updates yet.</p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {announcements.slice(0, 2).map((a) => (
+              <Card key={a.id} className={a.category === "SECURITY_NOTICE" ? "border-warning/30 bg-warning/5" : undefined}>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium">{a.title}</p>
+                  <Badge tone={a.category === "SECURITY_NOTICE" ? "warning" : "neutral"}>{a.category.replaceAll("_", " ")}</Badge>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs text-foreground-muted">{a.body}</p>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       <Link href={`/${estateSlug}/notifications`}>
@@ -247,11 +267,16 @@ export default async function EstateDashboardPage({ params }: { params: Promise<
   const { estateSlug } = await params;
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
   const estateLocale = await getEstateLocale(membership.estateId);
+  const isResidentRole = membership.role === Role.RESIDENT;
+  const hour = new Date().getHours();
+  const timeOfDayGreeting = isResidentRole ? (hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening") : "Good day";
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Good day, {user.name.split(" ")[0]}</h1>
+        <h1 className="text-xl font-semibold">
+          {timeOfDayGreeting}, {user.name.split(" ")[0]}
+        </h1>
         <p className="text-sm text-foreground-muted">{membership.estateName}</p>
       </div>
 

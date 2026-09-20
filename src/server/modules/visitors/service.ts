@@ -8,7 +8,10 @@ import { verifyVisitorToken } from "./token";
 import type { CreateVisitorPassInput } from "./schema";
 
 const passWithRelations = Prisma.validator<Prisma.VisitorPassDefaultArgs>()({
-  include: { resident: true, gateEntries: { orderBy: { checkInAt: "desc" }, take: 1 } },
+  include: {
+    resident: { include: { occupancies: { where: { isCurrent: true }, include: { unit: { include: { property: true } } } } } },
+    gateEntries: { orderBy: { checkInAt: "desc" }, take: 1 },
+  },
 });
 export type VisitorPassWithRelations = Prisma.VisitorPassGetPayload<typeof passWithRelations>;
 
@@ -213,4 +216,174 @@ export async function checkOutVisitor(estateId: string, gateEntryId: string, sec
 
 export async function countCurrentlyCheckedIn(estateId: string): Promise<number> {
   return prisma.gateEntry.count({ where: { estateId, checkOutAt: null } });
+}
+
+/** Full "currently inside" roster for the gate — every open GateEntry, not just the count. */
+export async function listCurrentlyInside(estateId: string) {
+  return prisma.gateEntry.findMany({
+    where: { estateId, checkOutAt: null },
+    include: { pass: { include: { resident: { include: { occupancies: { where: { isCurrent: true }, include: { unit: { include: { property: true } } } } } } } } },
+    orderBy: { checkInAt: "desc" },
+  });
+}
+
+/** Passes starting today (estate-local calendar day) that haven't been checked in yet — "who to expect", not "who's here". */
+export async function listExpectedToday(estateId: string, timezone: string) {
+  const now = new Date();
+  const todayLabel = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now); // YYYY-MM-DD, stable for comparison
+  const passes = await prisma.visitorPass.findMany({
+    where: { estateId, isRevoked: false },
+    include: passWithRelations.include,
+    orderBy: { startTime: "asc" },
+  });
+  return passes.filter((p) => {
+    const passDay = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(p.startTime);
+    return passDay === todayLabel && !openGateEntry(p);
+  });
+}
+
+/** Most recent gate activity (both check-ins and check-outs), newest first — the Recent Entries feed. */
+export async function listRecentActivity(estateId: string, limit = 10) {
+  return prisma.gateEntry.findMany({
+    where: { estateId },
+    include: { pass: { include: { resident: { include: { occupancies: { where: { isCurrent: true }, include: { unit: { include: { property: true } } } } } } } } },
+    orderBy: { checkInAt: "desc" },
+    take: limit,
+  });
+}
+
+export async function countAwaitingApproval(estateId: string): Promise<number> {
+  return prisma.visitorPass.count({ where: { estateId, pendingApproval: true, approvedAt: null, isRevoked: false } });
+}
+
+/**
+ * Security registers a walk-in visitor who showed up with no pre-existing
+ * pass — the pass is created immediately (short validity window, today
+ * only) but marked pendingApproval so it reads as "awaiting the host's
+ * decision" everywhere until the resident acts on it. Never auto-admits.
+ */
+export async function createWalkInPass(
+  estateId: string,
+  securityUserId: string,
+  input: { residentId: string; visitorName: string; visitorPhone?: string; vehicleNumber?: string; note?: string },
+) {
+  const resident = await scoped(estateId).resident.findById(input.residentId);
+  if (!resident) throw new NotFoundError("Resident");
+
+  const pin = await generateUniquePin(estateId);
+  const startTime = new Date();
+  const expiresAt = new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
+
+  const pass = await scoped(estateId).visitorPass.create({
+    residentId: input.residentId,
+    passType: "VISITOR",
+    visitorName: input.visitorName,
+    visitorPhone: input.visitorPhone || null,
+    vehicleNumber: input.vehicleNumber || null,
+    note: input.note || null,
+    startTime,
+    expiresAt,
+    pin,
+    pendingApproval: true,
+  });
+
+  await recordAudit({
+    estateId,
+    actorUserId: securityUserId,
+    action: "visitor.walk_in_registered",
+    entityType: "VisitorPass",
+    entityId: pass.id,
+    after: pass,
+  });
+
+  await dispatchNotification(estateId, {
+    residentId: input.residentId,
+    eventType: "visitor.approval_requested",
+    title: "Visitor approval required",
+    body: `${input.visitorName} is at the gate requesting access.`,
+  });
+
+  return pass;
+}
+
+/** Only the host resident may approve/decline their own walk-in request — enforced by the residentId match, same IDOR guard as cancelVisitorPass. */
+export async function approveWalkIn(estateId: string, residentId: string, actorUserId: string, passId: string) {
+  const pass = await scoped(estateId).visitorPass.findById(passId);
+  if (!pass || pass.residentId !== residentId) throw new NotFoundError("Visitor pass");
+
+  const updated = await scoped(estateId).visitorPass.update(passId, { approvedAt: new Date() });
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "visitor.walk_in_approved",
+    entityType: "VisitorPass",
+    entityId: passId,
+    after: updated,
+  });
+
+  return updated;
+}
+
+export async function declineWalkIn(estateId: string, residentId: string, actorUserId: string, passId: string) {
+  const pass = await scoped(estateId).visitorPass.findById(passId);
+  if (!pass || pass.residentId !== residentId) throw new NotFoundError("Visitor pass");
+
+  const updated = await scoped(estateId).visitorPass.update(passId, { isRevoked: true, cancelledAt: new Date() });
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "visitor.walk_in_declined",
+    entityType: "VisitorPass",
+    entityId: passId,
+    after: updated,
+  });
+
+  return updated;
+}
+
+/**
+ * Security's manual lookup — a visitor rarely arrives with a scannable
+ * code ready, so this searches everything a real gate officer would try:
+ * pass PIN, visitor name/phone, vehicle plate, or the host resident's name.
+ * Always estate-scoped; never reaches into another estate's records.
+ */
+export async function searchGateDirectory(estateId: string, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+
+  const passes = await prisma.visitorPass.findMany({
+    where: {
+      estateId,
+      OR: [
+        { pin: q },
+        { visitorName: { contains: q, mode: "insensitive" } },
+        { visitorPhone: { contains: q, mode: "insensitive" } },
+        { vehicleNumber: { contains: q, mode: "insensitive" } },
+        { resident: { firstName: { contains: q, mode: "insensitive" } } },
+        { resident: { lastName: { contains: q, mode: "insensitive" } } },
+      ],
+    },
+    include: passWithRelations.include,
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
+
+  return passes;
+}
+
+/** Every important gate decision that doesn't otherwise touch a row still gets an audit trail — a denial leaves no GateEntry, so this is the only record it happened. */
+export async function denyEntry(estateId: string, securityUserId: string, passId: string, reason?: string) {
+  const pass = await scoped(estateId).visitorPass.findById(passId);
+  if (!pass) throw new NotFoundError("Visitor pass");
+
+  await recordAudit({
+    estateId,
+    actorUserId: securityUserId,
+    action: "visitor.denied",
+    entityType: "VisitorPass",
+    entityId: passId,
+    after: { reason: reason || null },
+  });
 }

@@ -6,8 +6,11 @@ import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstateMember } from "@/server/auth/session";
 import { hasPermission } from "@/server/auth/permissions";
 import { isShortletEnabled } from "@/server/modules/shortlet/settings";
+import { listMembershipsForUser } from "@/server/modules/estates/service";
 import { EstateNav, type EstateNavItem } from "./EstateNav";
 import { ResidentMobileNav } from "./ResidentMobileNav";
+import { SecurityMobileNav } from "./SecurityMobileNav";
+import { EstateSwitcher } from "./EstateSwitcher";
 
 // Grouped to match the NidraQ Finance/Access/Operations/Community/
 // Administration product architecture — hrefs are unchanged from before, so
@@ -34,6 +37,8 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
     // on Moderation (which needs no resident profile) rather than the Feed
     // (which does) — the Community sub-nav still lets them reach every tab.
     { href: "community/moderation", label: "Community", group: "Community" },
+    { href: "gate", label: "Gate", group: "Security" },
+    { href: "gate/incidents", label: "Incidents", group: "Security" },
     { href: "import", label: "Import", group: "Administration" },
     { href: "settings", label: "Settings", group: "Administration" },
   ],
@@ -47,7 +52,11 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
     { href: "utilities", label: "Utilities" },
     { href: "vendors", label: "Vendors" },
   ],
-  [Role.SECURITY]: [{ href: "gate", label: "Gate" }],
+  [Role.SECURITY]: [
+    { href: "gate", label: "Gate" },
+    { href: "gate/inside", label: "Currently Inside" },
+    { href: "gate/incidents", label: "Incidents" },
+  ],
   [Role.RESIDENT]: [
     { href: "dashboard", label: "Home" },
     { href: "visitors", label: "Visitors" },
@@ -55,6 +64,8 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
     { href: "community", label: "Community" },
     { href: "my/utilities", label: "Utilities" },
     { href: "my/bills", label: "My Bills" },
+    { href: "vehicles", label: "My Vehicles" },
+    { href: "emergency", label: "Emergency" },
     { href: "notifications", label: "Notifications" },
   ],
   [Role.VENDOR]: [{ href: "jobs", label: "My Jobs" }],
@@ -71,6 +82,7 @@ export default async function EstateLayout({
   const { user, membership } = await guardPage(() => requireEstateMember(estateSlug));
   const nav = [...NAV_BY_ROLE[membership.role]];
   const isResident = membership.role === Role.RESIDENT;
+  const isSecurity = membership.role === Role.SECURITY;
 
   // Shortlet is a separately-entitled module (see platform admin's Shortlet
   // toggle) with its own nav/layout under /shortlet — this is the one entry
@@ -80,6 +92,12 @@ export default async function EstateLayout({
     nav.push({ href: "shortlet", label: "Shortlet", group: "Shortlet" });
   }
 
+  // Only residents get the switcher, and only when it would do something —
+  // a manager/security/vendor account is never expected to hold more than
+  // one estate membership today, so this stays resident-only rather than
+  // adding UI surface for a case that can't otherwise occur.
+  const otherEstateMemberships = isResident ? await listMembershipsForUser(user.id) : [];
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-border bg-surface">
@@ -87,7 +105,11 @@ export default async function EstateLayout({
           <div className="flex items-center gap-2.5">
             <Image src="/logo.svg" alt="NidraQ" width={32} height={32} className="rounded-md" />
             <div>
-              <p className="text-sm font-semibold">{membership.estateName}</p>
+              {isResident && otherEstateMemberships.length > 1 ? (
+                <EstateSwitcher memberships={otherEstateMemberships} currentSlug={estateSlug} />
+              ) : (
+                <p className="text-sm font-semibold">{membership.estateName}</p>
+              )}
               <p className="text-xs text-foreground-muted">
                 {user.name} · {membership.role.replaceAll("_", " ")}
               </p>
@@ -109,12 +131,13 @@ export default async function EstateLayout({
             </form>
           </div>
         </div>
-        <div className={isResident ? "hidden sm:block" : undefined}>
+        <div className={isResident || isSecurity ? "hidden sm:block" : undefined}>
           <EstateNav estateSlug={estateSlug} nav={nav} />
         </div>
       </header>
-      <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-8 ${isResident ? "pb-24 sm:pb-8" : ""}`}>{children}</main>
+      <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-8 ${isResident || isSecurity ? "pb-24 sm:pb-8" : ""}`}>{children}</main>
       {isResident && <ResidentMobileNav estateSlug={estateSlug} />}
+      {isSecurity && <SecurityMobileNav estateSlug={estateSlug} />}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { NotFoundError } from "@/lib/errors";
 import { getResidentByUserId } from "@/server/modules/residents/service";
-import { cancelVisitorPass, createVisitorPass } from "@/server/modules/visitors/service";
+import { approveWalkIn, cancelVisitorPass, createVisitorPass, declineWalkIn } from "@/server/modules/visitors/service";
 import { createVisitorPassSchema } from "@/server/modules/visitors/schema";
 
 export interface CreateVisitorPassFormState {
@@ -46,4 +46,22 @@ export async function cancelVisitorPassAction(estateSlug: string, passId: string
   await cancelVisitorPass(membership.estateId, resident.id, user.id, passId);
   revalidatePath(`/${estateSlug}/visitors`);
   revalidatePath(`/${estateSlug}/visitors/${passId}`);
+}
+
+export async function approveWalkInAction(estateSlug: string, passId: string) {
+  const { user, membership } = await requireEstatePermission(estateSlug, "own-visitors:*");
+  const resident = await getResidentByUserId(membership.estateId, user.id);
+  if (!resident) throw new NotFoundError("Resident profile");
+
+  await approveWalkIn(membership.estateId, resident.id, user.id, passId);
+  revalidatePath(`/${estateSlug}/visitors`);
+}
+
+export async function declineWalkInAction(estateSlug: string, passId: string) {
+  const { user, membership } = await requireEstatePermission(estateSlug, "own-visitors:*");
+  const resident = await getResidentByUserId(membership.estateId, user.id);
+  if (!resident) throw new NotFoundError("Resident profile");
+
+  await declineWalkIn(membership.estateId, resident.id, user.id, passId);
+  revalidatePath(`/${estateSlug}/visitors`);
 }

@@ -7,6 +7,7 @@ import { MobileNav } from "./MobileNav";
 const NAV_LINKS = [
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How It Works" },
+  { href: "/resident-app", label: "Resident App" },
   { href: "/tenant-management", label: "Tenant Management" },
   { href: "/shortlet-management", label: "Shortlet Management" },
   { href: "/security", label: "Security" },

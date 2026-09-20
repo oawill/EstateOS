@@ -7,6 +7,7 @@ import { NotFoundError } from "@/lib/errors";
 import { getResidentByUserId } from "@/server/modules/residents/service";
 import { getEstateLocale } from "@/server/modules/estates/service";
 import { listPassesForResident, passStatus, type VisitorPassWithRelations } from "@/server/modules/visitors/service";
+import { approveWalkInAction, declineWalkInAction } from "./actions";
 
 type ResidentFilter = "upcoming" | "active" | "completed" | "cancelled" | "expired";
 
@@ -63,6 +64,7 @@ export default async function VisitorsPage({
   const withStatus = passes.map((pass) => ({ pass, status: residentPassStatus(pass) }));
   const activeFilter = FILTERS.some((f) => f.value === statusParam) ? (statusParam as ResidentFilter) : null;
   const visible = activeFilter ? withStatus.filter((p) => p.status === activeFilter) : withStatus;
+  const pendingApprovals = passes.filter((p) => p.pendingApproval && !p.approvedAt && !p.isRevoked);
 
   return (
     <div className="space-y-6">
@@ -72,6 +74,30 @@ export default async function VisitorsPage({
           <Button>Request Gate Pass</Button>
         </Link>
       </div>
+
+      {pendingApprovals.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-warning">Visitor Approval Required</p>
+          {pendingApprovals.map((pass) => (
+            <Card key={pass.id} className="border-warning/30 bg-warning/5">
+              <p className="font-medium">{pass.visitorName}</p>
+              <p className="text-sm text-foreground-muted">is at the gate requesting access.</p>
+              <div className="mt-3 flex gap-2">
+                <form action={approveWalkInAction.bind(null, estateSlug, pass.id)} className="flex-1">
+                  <Button type="submit" className="w-full">
+                    Approve
+                  </Button>
+                </form>
+                <form action={declineWalkInAction.bind(null, estateSlug, pass.id)} className="flex-1">
+                  <Button type="submit" variant="danger" className="w-full">
+                    Decline
+                  </Button>
+                </form>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {passes.length > 0 && (
         <div className="flex flex-wrap gap-2">

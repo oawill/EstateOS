@@ -131,3 +131,42 @@ export async function addVehicle(
 
   return vehicle;
 }
+
+/** Gate lookup by plate — deliberately returns only what security needs to authorize entry (owner name + unit), never the resident's other records. */
+export async function findVehicleByPlate(estateId: string, plateNumber: string) {
+  const plate = plateNumber.trim();
+  if (!plate) return null;
+
+  return scoped(estateId).vehicle.findMany<{
+    id: string;
+    plateNumber: string;
+    make: string | null;
+    model: string | null;
+    color: string | null;
+    resident: { firstName: string; lastName: string; occupancies: { unit: { label: string; property: { addressLabel: string } } }[] };
+  }>({
+    where: { plateNumber: { equals: plate, mode: "insensitive" } } as never,
+    include: { resident: { include: { occupancies: { where: { isCurrent: true }, include: { unit: { include: { property: true } } } } } } } as never,
+  }).then((rows) => rows[0] ?? null);
+}
+
+export async function listVehiclesForResident(estateId: string, residentId: string) {
+  return scoped(estateId).vehicle.findMany({ where: { residentId } as never, orderBy: { createdAt: "desc" } as never });
+}
+
+/** Verifies the vehicle belongs to this resident (not just this estate) before removing it — a resident must never be able to remove another resident's vehicle by guessing its id. */
+export async function removeVehicle(estateId: string, actorUserId: string, residentId: string, vehicleId: string) {
+  const vehicle = await scoped(estateId).vehicle.findById<{ id: string; residentId: string }>(vehicleId);
+  if (!vehicle || vehicle.residentId !== residentId) throw new NotFoundError("Vehicle");
+
+  await scoped(estateId).vehicle.remove(vehicleId);
+
+  await recordAudit({
+    estateId,
+    actorUserId,
+    action: "vehicle.removed",
+    entityType: "Vehicle",
+    entityId: vehicleId,
+    before: vehicle,
+  });
+}

@@ -31,6 +31,7 @@ import type {
   Receipt,
   Reservation,
   Resident,
+  SecurityIncident,
   ShortletProperty,
   ShortletPropertyImage,
   ShortletSettings,
@@ -221,6 +222,13 @@ export function scoped(estateId: string) {
       Omit<Prisma.VendorCreateInput, "estateId" | "estate">,
       Prisma.VendorUpdateInput
     >(prisma.vendor, "Vendor", estateId),
+
+    securityIncident: makeScopedDelegate<
+      Prisma.SecurityIncidentWhereInput,
+      SecurityIncident,
+      Omit<Prisma.SecurityIncidentUncheckedCreateInput, "estateId" | "id" | "createdAt" | "updatedAt">,
+      Prisma.SecurityIncidentUpdateInput
+    >(prisma.securityIncident, "SecurityIncident", estateId),
 
     maintenanceTicket: makeScopedDelegate<
       Prisma.MaintenanceTicketWhereInput,

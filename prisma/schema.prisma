@@ -440,6 +440,7 @@ model User {
   rentalApplicantProfile     RentalApplicant?
   shortletOperatorProfile    ShortletOperator?
   shortletGuestProfile       ShortletGuest?
+  reportedSecurityIncidents  SecurityIncident[]
 }
 
 // Only the SHA-256 hash of the raw token is ever stored — the raw,
@@ -660,6 +661,7 @@ model Estate {
   reservations           Reservation[]
   availabilityBlocks     AvailabilityBlock[]
   housekeepingTasks      HousekeepingTask[]
+  securityIncidents      SecurityIncident[]
 
   @@index([subscriptionStatus])
 }
@@ -989,27 +991,33 @@ model Receipt {
 // directly rather than a separate reusable Visitor profile, since nothing
 // in this phase needs to reuse a visitor's details across visits.
 model VisitorPass {
-  id            String          @id @default(cuid())
-  estateId      String
-  residentId    String // host
+  id              String          @id @default(cuid())
+  estateId        String
+  residentId      String // host
   // Purely a labeling/filtering concern for the resident-facing UI — every
   // type shares the exact same underlying credential (PIN/QR/validity
   // window). Adding a genuinely different access type later doesn't
   // require a new model, just a new enum value.
-  passType      VisitorPassType @default(VISITOR)
-  visitorName   String
-  visitorPhone  String?
-  vehicleNumber String?
-  note          String?
-  startTime     DateTime
-  expiresAt     DateTime
+  passType        VisitorPassType @default(VISITOR)
+  visitorName     String
+  visitorPhone    String?
+  vehicleNumber   String?
+  note            String?
+  startTime       DateTime
+  expiresAt       DateTime
   // 6 digits, time-scoped uniqueness only (see createVisitorPass) — not a
   // DB unique constraint, since permanently reserving PINs would
   // eventually exhaust the 1,000,000-combination space.
-  pin           String
-  isRevoked     Boolean         @default(false)
-  cancelledAt   DateTime?
-  createdAt     DateTime        @default(now())
+  pin             String
+  isRevoked       Boolean         @default(false)
+  cancelledAt     DateTime?
+  // Set when Security registers a walk-in visitor who has no pre-existing
+  // pass — the pass exists immediately (so it's the one authoritative
+  // record either way) but reads as awaiting the host's decision until
+  // approvedAt is stamped. A resident-created pass never sets this.
+  pendingApproval Boolean         @default(false)
+  approvedAt      DateTime?
+  createdAt       DateTime        @default(now())
 
   estate      Estate      @relation(fields: [estateId], references: [id], onDelete: Cascade)
   resident    Resident    @relation(fields: [residentId], references: [id], onDelete: Cascade)
@@ -3510,4 +3518,59 @@ model OwnerStay {
   listing ShortletListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 
   @@index([listingId])
+}
+
+// ---------------------------------------------------------------------------
+// Security incident reporting -- a gate/security-officer-facing log,
+// distinct from CommunityReport (community-content moderation) and from
+// MaintenanceTicket (a repair request). Never silently deleted or edited
+// away: every status change should go through recordAudit, same as every
+// other estate-scoped write in this schema.
+// ---------------------------------------------------------------------------
+
+enum SecurityIncidentCategory {
+  UNAUTHORIZED_ACCESS_ATTEMPT
+  SECURITY_CONCERN
+  PROPERTY_DAMAGE
+  VEHICLE_INCIDENT
+  NOISE_DISTURBANCE
+  MEDICAL_EMERGENCY
+  FIRE
+  SUSPICIOUS_ACTIVITY
+  OTHER
+}
+
+enum SecurityIncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SecurityIncidentStatus {
+  OPEN
+  UNDER_REVIEW
+  ESCALATED
+  RESOLVED
+  CLOSED
+}
+
+model SecurityIncident {
+  id               String                   @id @default(cuid())
+  estateId         String
+  incidentNumber   String                   @unique
+  category         SecurityIncidentCategory
+  severity         SecurityIncidentSeverity @default(MEDIUM)
+  status           SecurityIncidentStatus   @default(OPEN)
+  description      String
+  location         String?
+  reportedByUserId String
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  estate     Estate @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  reportedBy User   @relation(fields: [reportedByUserId], references: [id])
+
+  @@index([estateId])
+  @@index([status])
 }

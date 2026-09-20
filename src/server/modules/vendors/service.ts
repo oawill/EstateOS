@@ -1,3 +1,4 @@
+import { prisma } from "@/server/db/client";
 import { scoped } from "@/server/db/scoped";
 import { recordAudit } from "@/server/modules/audit";
 import { NotFoundError } from "@/lib/errors";
@@ -17,6 +18,34 @@ export async function getVendor(estateId: string, vendorId: string) {
   const vendor = await scoped(estateId).vendor.findById(vendorId);
   if (!vendor) throw new NotFoundError("Vendor");
   return vendor;
+}
+
+/**
+ * Gate lookup — "is this vendor authorized, and where are they headed" —
+ * matched by name since a gate officer has no vendor id to type. Only
+ * ever answers with the vendor's directory approval status plus any
+ * currently-open work order destined for a unit; never a scheduled
+ * appointment time, since MaintenanceTicket has no such field today.
+ */
+export async function findVendorAtGate(estateId: string, query: string) {
+  const q = query.trim();
+  if (!q) return [];
+
+  const allMatches = await scoped(estateId).vendor.findMany({
+    where: { name: { contains: q, mode: "insensitive" } } as never,
+  });
+  const vendors = allMatches.slice(0, 10);
+
+  return Promise.all(
+    vendors.map(async (vendor) => {
+      const openTickets = await prisma.maintenanceTicket.findMany({
+        where: { estateId, vendorId: vendor.id, status: { notIn: ["RESOLVED", "CLOSED"] } },
+        include: { resident: { include: { occupancies: { where: { isCurrent: true }, include: { unit: { include: { property: true } } } } } } },
+        orderBy: { createdAt: "desc" },
+      });
+      return { vendor, openTickets };
+    }),
+  );
 }
 
 export async function createVendor(estateId: string, actorUserId: string, input: VendorInput) {

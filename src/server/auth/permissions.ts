@@ -28,11 +28,13 @@ export type Permission =
   | "visitors:verify"
   | "gate:*"
   | "vehicles:read"
+  | "incidents:*"
   | "own-property:read"
   | "own-bills:read"
   | "own-payments:*"
   | "own-visitors:*"
   | "own-maintenance:*"
+  | "own-vehicles:*"
   | "announcements:read"
   | "assigned-workorders:read"
   | "assigned-workorders:update"
@@ -72,6 +74,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "utilities:*",
     "vendors:*",
     "visitors:*",
+    "gate:*",
+    "incidents:*",
     "announcements:*",
     "members:*",
     "community-posts:*",
@@ -96,7 +100,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [Role.FACILITY_MANAGER]: ["maintenance:*", "utilities:*", "vendors:*", "workorders:*"],
 
   // Deliberately excludes anything billing/invoices/payments-shaped.
-  [Role.SECURITY]: ["visitors:verify", "gate:*", "vehicles:read"],
+  [Role.SECURITY]: ["visitors:verify", "gate:*", "vehicles:read", "incidents:*"],
 
   [Role.RESIDENT]: [
     "own-property:read",
@@ -104,6 +108,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "own-payments:*",
     "own-visitors:*",
     "own-maintenance:*",
+    "own-vehicles:*",
     "announcements:read",
     "community-posts:*",
     "community-comments:*",
