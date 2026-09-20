@@ -1,10 +1,16 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button, FormError, Input, Label } from "@/components/shared/ui";
+import { Button, FormError, Input, Label, Select } from "@/components/shared/ui";
 import { createPlanAction, type CreatePlanFormState } from "../actions";
 
 const initialState: CreatePlanFormState = {};
+
+const MODULES = [
+  ["ESTATE_MANAGEMENT", "Estate Management"],
+  ["TENANT_MANAGEMENT", "Tenant Management"],
+  ["SHORTLET_MANAGEMENT", "Shortlet Management"],
+] as const;
 
 export function NewPlanForm() {
   const [state, formAction, pending] = useActionState(createPlanAction, initialState);
@@ -15,6 +21,16 @@ export function NewPlanForm() {
       <div>
         <Label htmlFor="name">Plan name</Label>
         <Input id="name" name="name" required placeholder="Starter" />
+      </div>
+      <div>
+        <Label htmlFor="module">Module</Label>
+        <Select id="module" name="module" required defaultValue="ESTATE_MANAGEMENT">
+          {MODULES.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>

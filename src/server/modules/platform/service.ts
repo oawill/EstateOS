@@ -18,7 +18,7 @@ export async function listAllEstates() {
 export async function getEstateDetail(estateId: string) {
   const estate = await prisma.estate.findUnique({
     where: { id: estateId },
-    include: { plan: true, _count: { select: { members: true, residents: true, properties: true } } },
+    include: { plan: true, organization: true, _count: { select: { members: true, residents: true, properties: true } } },
   });
   if (!estate) throw new NotFoundError("Estate");
 

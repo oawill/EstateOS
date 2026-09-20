@@ -22,6 +22,7 @@ export async function createPlanAction(
 
   const parsed = createPlanSchema.safeParse({
     name: formData.get("name"),
+    module: formData.get("module"),
     monthlyPriceKobo: Number.isFinite(monthlyPriceNaira) ? Math.round(monthlyPriceNaira * 100) : NaN,
     annualPriceKobo:
       annualPriceNaira !== undefined && Number.isFinite(annualPriceNaira)

@@ -5,6 +5,7 @@ import { requirePlatformAdmin } from "@/server/auth/guards";
 import { assignPlanSchema } from "@/server/modules/platform/plansSchema";
 import { assignPlan, setEstateSubscriptionStatus } from "@/server/modules/platform/service";
 import { setShortletEnabled } from "@/server/modules/shortlet/settings";
+import { linkEstateToOrganization } from "@/server/modules/organizations/service";
 
 export async function toggleEstateStatusAction(estateId: string, status: "ACTIVE" | "SUSPENDED") {
   const user = await requirePlatformAdmin();
@@ -43,4 +44,11 @@ export async function assignPlanAction(
   revalidatePath(`/platform/estates/${estateId}`);
   revalidatePath("/platform");
   return {};
+}
+
+export async function linkEstateOrganizationAction(estateId: string, formData: FormData) {
+  const user = await requirePlatformAdmin();
+  const organizationId = String(formData.get("organizationId") || "") || null;
+  await linkEstateToOrganization(user.id, estateId, organizationId);
+  revalidatePath(`/platform/estates/${estateId}`);
 }

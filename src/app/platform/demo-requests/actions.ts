@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { DemoRequestStatus } from "@prisma/client";
+import { redirect } from "next/navigation";
+import { DemoRequestStatus, SaasModule } from "@prisma/client";
 import { z } from "zod";
 import { requirePlatformAdmin } from "@/server/auth/guards";
 import {
@@ -10,6 +11,7 @@ import {
   updateDemoRequestNotes,
   updateDemoRequestStatus,
 } from "@/server/modules/demoRequests/service";
+import { activateOrganizationFromDemoRequest } from "@/server/modules/organizations/service";
 
 export interface DemoRequestActionState {
   error?: string;
@@ -73,4 +75,25 @@ export async function recordScheduledDemoAction(
   await recordScheduledDemo(user.id, id, scheduledDemoAt);
   revalidatePath(`/platform/demo-requests/${id}`);
   return {};
+}
+
+export interface ActivateOrganizationFormState {
+  error?: string;
+}
+
+export async function activateOrganizationAction(
+  demoRequestId: string,
+  _prevState: ActivateOrganizationFormState,
+  formData: FormData,
+): Promise<ActivateOrganizationFormState> {
+  const user = await requirePlatformAdmin();
+
+  const modules = formData.getAll("modules").filter((m): m is SaasModule => Object.values(SaasModule).includes(m as SaasModule));
+  if (modules.length === 0) {
+    return { error: "Select at least one module to activate." };
+  }
+
+  const organization = await activateOrganizationFromDemoRequest(user.id, demoRequestId, modules);
+  revalidatePath(`/platform/demo-requests/${demoRequestId}`);
+  redirect(`/platform/organizations/${organization.id}`);
 }

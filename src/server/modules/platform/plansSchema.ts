@@ -1,7 +1,9 @@
+import { SaasModule } from "@prisma/client";
 import { z } from "zod";
 
 export const createPlanSchema = z.object({
   name: z.string().trim().min(1, "Plan name is required").max(80),
+  module: z.nativeEnum(SaasModule).default(SaasModule.ESTATE_MANAGEMENT),
   monthlyPriceKobo: z.coerce.number().int().positive(),
   annualPriceKobo: z.coerce.number().int().positive().optional(),
   unitLimit: z.coerce.number().int().positive().optional(),

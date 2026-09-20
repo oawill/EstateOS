@@ -1,11 +1,13 @@
-import { Badge, Button, Card } from "@/components/shared/ui";
+import Link from "next/link";
+import { Badge, Button, Card, Select } from "@/components/shared/ui";
 import { formatDate } from "@/lib/utils";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requirePlatformAdmin } from "@/server/auth/guards";
 import { getEstateDetail } from "@/server/modules/platform/service";
 import { listPlans } from "@/server/modules/platform/plans";
+import { listOrganizations } from "@/server/modules/organizations/service";
 import { getOrCreateShortletSettings } from "@/server/modules/shortlet/settings";
-import { toggleEstateStatusAction, toggleShortletEnabledAction } from "../../actions";
+import { toggleEstateStatusAction, toggleShortletEnabledAction, linkEstateOrganizationAction } from "../../actions";
 import { AssignPlanForm } from "./AssignPlanForm";
 
 const STATUS_TONE = {
@@ -27,6 +29,7 @@ export default async function PlatformEstateDetailPage({
     return getEstateDetail(estateId);
   });
   const plans = await listPlans();
+  const organizations = await listOrganizations();
   const shortletSettings = await getOrCreateShortletSettings(estateId);
 
   return (
@@ -74,6 +77,36 @@ export default async function PlatformEstateDetailPage({
             </form>
           )}
         </div>
+      </Card>
+
+      <Card>
+        <p className="mb-3 text-sm font-medium text-slate-700">Organization</p>
+        {estate.organization ? (
+          <Link href={`/platform/organizations/${estate.organization.id}`} className="text-sm text-primary hover:underline">
+            {estate.organization.name} →
+          </Link>
+        ) : (
+          <p className="mb-2 text-sm text-slate-500">Not linked to a commercial organization.</p>
+        )}
+        <form
+          action={async (formData) => {
+            "use server";
+            await linkEstateOrganizationAction(estate.id, formData);
+          }}
+          className="mt-2 flex items-center gap-2"
+        >
+          <Select name="organizationId" defaultValue={estate.organization?.id ?? ""}>
+            <option value="">None</option>
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name}
+              </option>
+            ))}
+          </Select>
+          <Button type="submit" variant="secondary">
+            Save
+          </Button>
+        </form>
       </Card>
 
       <Card>

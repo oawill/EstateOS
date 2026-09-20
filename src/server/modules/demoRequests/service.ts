@@ -77,7 +77,10 @@ export async function listDemoRequests(filters: DemoRequestFilters) {
 }
 
 export async function getDemoRequestDetail(id: string) {
-  const request = await prisma.demoRequest.findUnique({ where: { id }, include: { assignedTo: true } });
+  const request = await prisma.demoRequest.findUnique({
+    where: { id },
+    include: { assignedTo: true, convertedOrganization: { select: { id: true, name: true } } },
+  });
   if (!request) throw new NotFoundError("Demo request");
   return request;
 }

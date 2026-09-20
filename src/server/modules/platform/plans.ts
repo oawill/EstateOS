@@ -11,6 +11,7 @@ export async function createPlan(actorUserId: string, input: CreatePlanInput) {
   const plan = await prisma.plan.create({
     data: {
       name: input.name,
+      module: input.module,
       monthlyPriceKobo: input.monthlyPriceKobo,
       annualPriceKobo: input.annualPriceKobo ?? null,
       unitLimit: input.unitLimit ?? null,

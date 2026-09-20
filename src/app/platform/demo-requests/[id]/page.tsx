@@ -6,6 +6,7 @@ import { requirePlatformAdmin } from "@/server/auth/guards";
 import { getDemoRequestDetail, listAssignableStaff } from "@/server/modules/demoRequests/service";
 import { UNIT_RANGE_OPTIONS } from "@/app/request-demo/labels";
 import { DemoRequestAdminControls } from "./DemoRequestAdminControls";
+import { ActivateOrganizationCard } from "./ActivateOrganizationCard";
 
 function formatUnitRange(range: string | null): string | null {
   if (!range) return null;
@@ -108,6 +109,15 @@ export default async function DemoRequestDetailPage({ params }: { params: Promis
           <Field label="How they heard about NidraQ" value={request.referralSource} />
         </div>
       </Card>
+
+      <ActivateOrganizationCard
+        demoRequestId={request.id}
+        convertedOrganization={request.convertedOrganization}
+        defaultModules={[
+          "ESTATE_MANAGEMENT",
+          ...(request.interestedFeatures.includes("SHORTLET_MANAGEMENT") ? (["SHORTLET_MANAGEMENT"] as const) : []),
+        ]}
+      />
 
       <DemoRequestAdminControls
         id={request.id}

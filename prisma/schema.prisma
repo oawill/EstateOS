@@ -410,20 +410,25 @@ enum HousekeepingStatus {
 // A User is an authenticatable identity. It may or may not be linked to a
 // Resident profile, and may hold EstateMember roles in one or more estates.
 model User {
-  id                String    @id @default(cuid())
-  email             String?   @unique
-  phone             String?   @unique
+  id                String        @id @default(cuid())
+  email             String?       @unique
+  phone             String?       @unique
   passwordHash      String?
   name              String
-  isPlatformAdmin   Boolean   @default(false)
+  isPlatformAdmin   Boolean       @default(false)
+  // Granular internal role for future permission checks — additive only.
+  // `isPlatformAdmin` remains the sole gate `requirePlatformAdmin()`
+  // enforces today; this field is recorded and shown but not yet
+  // authorization-bearing, so assigning it can never widen access.
+  platformRole      PlatformRole?
   // Stamped on every successful password change (reset or authenticated
   // change) — the JWT session callback compares this against the token's
   // issued-at time to invalidate any session issued before the password
   // changed, since Credentials+JWT auth has no server-side session store
   // to revoke directly. See src/server/auth/config.ts.
   passwordChangedAt DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   memberships                EstateMember[]
   residentLinks              Resident[]
@@ -485,16 +490,23 @@ model PasswordResetRequestLog {
 // is descriptive only. Pricing is per the spec's "finalize pricing later" —
 // this just makes it configurable rather than hard-coded.
 model Plan {
-  id               String   @id @default(cuid())
+  id               String     @id @default(cuid())
   name             String
+  // Existing rows all predate multi-module — they default to the only
+  // module that existed (Estate Management) rather than requiring a
+  // backfill migration.
+  module           SaasModule @default(ESTATE_MANAGEMENT)
   monthlyPriceKobo Int
   annualPriceKobo  Int?
   unitLimit        Int? // null = unlimited
   featureSummary   String?
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
 
-  estates Estate[]
+  estates       Estate[]
+  subscriptions Subscription[]
+
+  @@index([module])
 }
 
 // ---------------------------------------------------------------------------
@@ -576,10 +588,101 @@ model DemoRequest {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  assignedTo User? @relation("DemoRequestAssignee", fields: [assignedToUserId], references: [id])
+  assignedTo            User?         @relation("DemoRequestAssignee", fields: [assignedToUserId], references: [id])
+  convertedOrganization Organization?
 
   @@index([status])
   @@index([ipHash, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Commercial SaaS layer — Organizations & Subscriptions
+// ---------------------------------------------------------------------------
+
+enum SaasModule {
+  ESTATE_MANAGEMENT
+  TENANT_MANAGEMENT
+  SHORTLET_MANAGEMENT
+}
+
+enum OrganizationStatus {
+  LEAD
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  ARCHIVED
+}
+
+enum PlatformRole {
+  PLATFORM_SUPER_ADMIN
+  PLATFORM_ADMIN
+  PLATFORM_FINANCE
+  PLATFORM_SUPPORT
+  PLATFORM_SALES
+  PLATFORM_OPERATIONS
+}
+
+/// The commercial customer: one Organization may hold subscriptions across
+/// several NidraQ modules (Estate/Tenant/Shortlet Management) instead of a
+/// separate account per product. Deliberately NOT required by Estate today
+/// — `Estate.organizationId` is optional so every existing estate keeps
+/// working unlinked, and linking is an explicit platform-admin action, not
+/// a backfill this migration performs.
+model Organization {
+  id                 String             @id @default(cuid())
+  name               String
+  organizationType   OrganizationType
+  status             OrganizationStatus @default(LEAD)
+  primaryContactName String?
+  email              String?
+  phone              String?
+  country            String             @default("NG")
+  billingNotes       String?
+  internalNotes      String?
+
+  // Set only when this organization was created by activating a demo
+  // request — traces the Prospect → Demo → Organization funnel without
+  // changing DemoRequest's own shape.
+  sourceDemoRequestId String?      @unique
+  sourceDemoRequest   DemoRequest? @relation(fields: [sourceDemoRequestId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+  estates       Estate[]
+
+  @@index([status])
+}
+
+/// One module's commercial terms for one Organization. An Organization
+/// with three modules holds three Subscription rows, each independently
+/// priced/billed/renewed — see AGENTS.md onboarding spec section 15.
+model Subscription {
+  id               String             @id @default(cuid())
+  organizationId   String
+  module           SaasModule
+  planId           String?
+  status           SubscriptionStatus @default(TRIAL)
+  quantity         Int?
+  // Snapshot of the price at the time this subscription was created/
+  // renewed — never recomputed from the live Plan, so a later plan price
+  // change never silently rewrites what an existing customer is billed.
+  monthlyPriceKobo Int?
+  startDate        DateTime           @default(now())
+  trialEndsAt      DateTime?
+  currentPeriodEnd DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         Plan?        @relation(fields: [planId], references: [id])
+
+  @@index([organizationId])
+  @@index([module])
 }
 
 // ---------------------------------------------------------------------------
@@ -612,10 +715,15 @@ model Estate {
   subscriptionStatus SubscriptionStatus @default(TRIAL)
   planId             String?
   trialEndsAt        DateTime?
+  // Nullable and unmanaged by estate-facing code — only platform admin
+  // links an estate to its commercial Organization. Every existing and
+  // newly self-service-onboarded estate keeps working with this unset.
+  organizationId     String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
   plan                   Plan?                   @relation(fields: [planId], references: [id])
+  organization           Organization?           @relation(fields: [organizationId], references: [id])
   members                EstateMember[]
   blocks                 Block[]
   streets                Street[]

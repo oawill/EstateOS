@@ -6,6 +6,8 @@ import type {
   InvoiceStatus,
   MaintenancePriority,
   MaintenanceStatus,
+  OrganizationStatus,
+  SubscriptionStatus,
 } from "@prisma/client";
 import type { EntryCodeStatus } from "@/server/modules/visitors/service";
 
@@ -76,4 +78,22 @@ export const DISPUTE_STATUS_TONE: Record<BillingDisputeStatus, Tone> = {
   RESOLVED: "success",
   ADJUSTED: "success",
   REJECTED: "danger",
+};
+
+export const SUBSCRIPTION_STATUS_TONE: Record<SubscriptionStatus, Tone> = {
+  TRIAL: "neutral",
+  ACTIVE: "success",
+  PAST_DUE: "warning",
+  SUSPENDED: "danger",
+  CANCELLED: "danger",
+};
+
+export const ORGANIZATION_STATUS_TONE: Record<OrganizationStatus, Tone> = {
+  LEAD: "neutral",
+  TRIAL: "info",
+  ACTIVE: "success",
+  PAST_DUE: "warning",
+  SUSPENDED: "danger",
+  CANCELLED: "danger",
+  ARCHIVED: "neutral",
 };

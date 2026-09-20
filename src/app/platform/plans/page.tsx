@@ -26,6 +26,7 @@ export default async function PlatformPlansPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{plan.name}</p>
+                  <Badge tone="info">{plan.module.replaceAll("_", " ")}</Badge>
                   <Badge tone={plan.isActive ? "success" : "neutral"}>{plan.isActive ? "Active" : "Retired"}</Badge>
                 </div>
                 <p className="mt-0.5 text-sm text-slate-500">
