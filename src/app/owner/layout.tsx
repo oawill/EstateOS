@@ -3,16 +3,19 @@ import Link from "next/link";
 import { signOut } from "@/server/auth/config";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireUser } from "@/server/auth/session";
-import { requirePropertyOwner } from "@/server/modules/tenantManagement/access";
+import { getOwnerAccessContext } from "@/server/modules/owner/access";
 import { OwnerMobileNav } from "./OwnerMobileNav";
+import { PortfolioSwitcher } from "./PortfolioSwitcher";
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
-  // Today the only owner relationship NidraQ can authorize is Tenant
-  // Management's PropertyOwner — an Estate Executive context and a
-  // Shortlet Owner context are architected for (see the portfolio context
-  // switcher's design) but have no backing ownership model yet, so this
-  // guard stays narrow rather than pretending a broader identity exists.
-  const { user } = await guardPage(async () => requirePropertyOwner(await requireUser()));
+  // A landlord (Tenant Management PropertyOwner) and an estate executive
+  // (ESTATE_ADMIN membership) are both valid ways into the Owner app, and
+  // one person can be both — see getOwnerAccessContext. Someone with
+  // neither still reaches the app (their Home shows an honest empty
+  // state, not a 404) since a brand-new owner account legitimately starts
+  // with no portfolio yet.
+  const user = await guardPage(() => requireUser());
+  const access = await getOwnerAccessContext(user.id);
 
   return (
     <div className="flex min-h-screen flex-col bg-background pb-16 sm:pb-0">
@@ -51,6 +54,8 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
           </div>
         </div>
       </header>
+
+      <PortfolioSwitcher hasRentalPortfolio={access.ownerId !== null} executiveEstates={access.executiveEstates} />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
 

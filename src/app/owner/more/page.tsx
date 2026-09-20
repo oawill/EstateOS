@@ -1,26 +1,29 @@
 import { Card } from "@/components/shared/ui";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireUser } from "@/server/auth/session";
-import { requirePropertyOwner } from "@/server/modules/tenantManagement/access";
 import { getPayoutDetails } from "@/server/modules/tenantManagement/property";
+import { getOwnerAccessContext } from "@/server/modules/owner/access";
 import { signOut } from "@/server/auth/config";
 import { PayoutDetailsForm } from "@/app/landlord/PayoutDetailsForm";
 
 export default async function OwnerMorePage() {
-  const { user, ownerId } = await guardPage(async () => requirePropertyOwner(await requireUser()));
-  const payoutDetails = await getPayoutDetails(user, ownerId);
+  const user = await guardPage(() => requireUser());
+  const access = await getOwnerAccessContext(user.id);
+  const payoutDetails = access.ownerId ? await getPayoutDetails(user, access.ownerId) : null;
 
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">More</h1>
 
-      <Card>
-        <p className="text-sm font-medium">Payout details</p>
-        <p className="mt-1 text-xs text-foreground-muted">Only visible to you — never shown in any property or tenant list.</p>
-        <div className="mt-3">
-          <PayoutDetailsForm ownerId={ownerId} current={payoutDetails} />
-        </div>
-      </Card>
+      {access.ownerId && payoutDetails && (
+        <Card>
+          <p className="text-sm font-medium">Payout details</p>
+          <p className="mt-1 text-xs text-foreground-muted">Only visible to you — never shown in any property or tenant list.</p>
+          <div className="mt-3">
+            <PayoutDetailsForm ownerId={access.ownerId} current={payoutDetails} />
+          </div>
+        </Card>
+      )}
 
       <Card>
         <p className="text-sm font-medium">Help &amp; support</p>

@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { Badge, Card } from "@/components/shared/ui";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireUser } from "@/server/auth/session";
-import { requirePropertyOwner } from "@/server/modules/tenantManagement/access";
 import { listAccessibleProperties } from "@/server/modules/tenantManagement/property";
 import { listOwnerStatements } from "@/server/modules/tenantManagement/statements";
+import { getOwnerAccessContext } from "@/server/modules/owner/access";
 import { formatNaira } from "@/lib/utils";
 import { StatementForm } from "@/app/landlord/StatementForm";
 
@@ -13,10 +14,37 @@ const MONTH_NAMES = [
 ];
 
 export default async function OwnerReportsPage() {
-  const { user, ownerId } = await guardPage(async () => requirePropertyOwner(await requireUser()));
+  const user = await guardPage(() => requireUser());
+  const access = await getOwnerAccessContext(user.id);
+
+  if (access.ownerId === null) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-semibold">Reports</h1>
+          <p className="mt-1 text-sm text-foreground-muted">Rental owner statements appear here once you have a rental portfolio.</p>
+        </div>
+        {access.executiveEstates.length > 0 && (
+          <Card>
+            <p className="text-sm text-foreground-muted">
+              Estate financial reports are available from Estate Management directly:
+            </p>
+            <div className="mt-2 space-y-1">
+              {access.executiveEstates.map((estate) => (
+                <Link key={estate.id} href={`/${estate.slug}/billing`} className="block text-sm text-primary hover:underline">
+                  {estate.name} — Billing &amp; Reports →
+                </Link>
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
   const [properties, statements] = await Promise.all([
     listAccessibleProperties(user),
-    listOwnerStatements(user, ownerId),
+    listOwnerStatements(user, access.ownerId),
   ]);
 
   return (

@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Badge, Card } from "@/components/shared/ui";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireUser } from "@/server/auth/session";
-import { requirePropertyOwner } from "@/server/modules/tenantManagement/access";
 import { getDashboardKpis } from "@/server/modules/tenantManagement/dashboard";
 import { listAccessibleProperties } from "@/server/modules/tenantManagement/property";
+import { getOwnerAccessContext } from "@/server/modules/owner/access";
 import { formatDate, formatNaira } from "@/lib/utils";
 
 function daysUntil(date: Date): number {
@@ -12,7 +13,33 @@ function daysUntil(date: Date): number {
 }
 
 export default async function OwnerHomePage() {
-  const { user } = await guardPage(async () => requirePropertyOwner(await requireUser()));
+  const user = await guardPage(() => requireUser());
+  const access = await getOwnerAccessContext(user.id);
+
+  if (access.ownerId === null) {
+    if (access.executiveEstates.length === 1) redirect(`/owner/estates/${access.executiveEstates[0].id}`);
+    if (access.executiveEstates.length > 1) redirect("/owner/portfolio");
+
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {greeting}, {user.name.split(" ")[0]}
+          </h1>
+          <p className="mt-1 text-sm text-foreground-muted">Here&apos;s what needs your attention today.</p>
+        </div>
+        <Card className="text-center">
+          <p className="font-medium">No properties yet</p>
+          <p className="mt-1 text-sm text-foreground-muted">
+            Properties assigned to your NidraQ account will appear here.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   const [kpis, properties] = await Promise.all([getDashboardKpis(user), listAccessibleProperties(user)]);
 
   const hour = new Date().getHours();
