@@ -446,6 +446,9 @@ model User {
   shortletOperatorProfile    ShortletOperator?
   shortletGuestProfile       ShortletGuest?
   reportedSecurityIncidents  SecurityIncident[]
+  advertiserProfile          Advertiser?
+  adHides                    AdHide[]
+  adReports                  AdReport[]
 }
 
 // Only the SHA-256 hash of the raw token is ever stored — the raw,
@@ -686,6 +689,230 @@ model Subscription {
 }
 
 // ---------------------------------------------------------------------------
+// Advertising — Stage 1 (sponsored cards, marketplace, manual approval,
+// estate targeting, fixed-price campaigns, impressions/clicks). Billing
+// belongs to the commercial SaaS layer, not any resident/tenant/shortlet
+// ledger — fixedPriceKobo here is informational only for this stage; no
+// payment/invoice flow is wired to it yet (see AGENTS.md advertising spec
+// section 31).
+// ---------------------------------------------------------------------------
+
+enum AdvertiserType {
+  LOCAL_BUSINESS
+  VERIFIED_VENDOR
+  NATIONAL_BRAND
+  PROPERTY_BUSINESS
+  ESTATE_PARTNER
+}
+
+enum AdvertiserStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+  ACTIVE
+  INACTIVE
+}
+
+enum AdCategory {
+  HOME_MAINTENANCE
+  CLEANING
+  MOVING_SERVICES
+  FURNITURE
+  INTERIOR_DESIGN
+  INTERNET_PROVIDERS
+  SOLAR_ENERGY
+  ELECTRICAL_SERVICES
+  PLUMBING
+  AIR_CONDITIONING
+  PEST_CONTROL
+  SECURITY_SERVICES
+  INSURANCE
+  HOME_FINANCE
+  REAL_ESTATE
+  RESTAURANTS
+  FOOD_DELIVERY
+  SUPERMARKETS
+  LAUNDRY
+  CAR_SERVICES
+  HOME_APPLIANCES
+  PROFESSIONAL_SERVICES
+  LOCAL_BUSINESSES
+  ESTATE_VENDORS
+  OTHER
+}
+
+enum CampaignGoal {
+  WEBSITE_VISITS
+  CALL_BUSINESS
+  WHATSAPP_BUSINESS
+  REQUEST_QUOTE
+  BOOK_SERVICE
+  VIEW_OFFER
+  VISIT_STORE
+  LEAD_GENERATION
+  PROPERTY_INQUIRY
+}
+
+enum CampaignStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AdPlacement {
+  RESIDENT_HOME_FEED
+  RESIDENT_MARKETPLACE
+}
+
+/// A business account, one per NidraQ user for this stage — apply, get
+/// reviewed, then create campaigns. Never linked to a per-estate Vendor
+/// record yet (see spec section 6's "verified vendor advantage" — deferred,
+/// it needs an identity-mapping decision this phase doesn't make).
+model Advertiser {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  businessName    String
+  contactName     String
+  email           String
+  phone           String
+  website         String?
+  category        AdCategory
+  description     String
+  advertiserType  AdvertiserType   @default(LOCAL_BUSINESS)
+  status          AdvertiserStatus @default(PENDING_REVIEW)
+  rejectionReason String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user      User         @relation(fields: [userId], references: [id])
+  campaigns AdCampaign[]
+
+  @@index([status])
+}
+
+/// Creative fields live directly on the campaign (headline/body/cta/etc.)
+/// rather than a separate AdCreative model — this stage has exactly one
+/// creative per campaign with no re-submission history, so the extra join
+/// would buy nothing yet.
+model AdCampaign {
+  id              String         @id @default(cuid())
+  advertiserId    String
+  goal            CampaignGoal
+  status          CampaignStatus @default(DRAFT)
+  placements      AdPlacement[]  @default([RESIDENT_HOME_FEED])
+  // Empty = every estate whose EstateAdvertisingPolicy allows advertising.
+  // Non-empty = only these estates (still subject to each one's policy).
+  targetEstateIds String[]       @default([])
+
+  headline       String
+  body           String
+  imageUrl       String?
+  ctaLabel       String
+  destinationUrl String?
+  offerTerms     String?
+
+  startDate DateTime
+  endDate   DateTime
+
+  // Informational for this stage — see the section banner above.
+  fixedPriceKobo Int?
+
+  rejectionReason  String?
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  approvedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  advertiser  Advertiser     @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  impressions AdImpression[]
+  clicks      AdClick[]
+  hides       AdHide[]
+  reports     AdReport[]
+
+  @@index([advertiserId])
+  @@index([status])
+}
+
+/// Deliberately minimal — estate/placement/day for frequency capping and
+/// reporting, never resident identity beyond the userId needed for the cap
+/// itself (see spec section 53, "avoid invasive behavioral surveillance").
+model AdImpression {
+  id         String      @id @default(cuid())
+  campaignId String
+  userId     String?
+  estateId   String?
+  placement  AdPlacement
+  createdAt  DateTime    @default(now())
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, createdAt])
+  @@index([userId, campaignId, createdAt])
+}
+
+model AdClick {
+  id         String      @id @default(cuid())
+  campaignId String
+  userId     String?
+  estateId   String?
+  placement  AdPlacement
+  createdAt  DateTime    @default(now())
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, createdAt])
+}
+
+/// A user hiding a campaign never shows it to them again — see
+/// getEligibleCampaign in src/server/modules/advertising/service.ts.
+model AdHide {
+  id         String   @id @default(cuid())
+  campaignId String
+  userId     String
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id])
+
+  @@unique([campaignId, userId])
+}
+
+model AdReport {
+  id         String   @id @default(cuid())
+  campaignId String
+  userId     String
+  reason     String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  campaign AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id])
+
+  @@index([campaignId])
+}
+
+/// Opt-in by design — advertising defaults OFF for every estate (new and
+/// existing) until an estate admin explicitly enables it.
+model EstateAdvertisingPolicy {
+  id                 String       @id @default(cuid())
+  estateId           String       @unique
+  advertisingEnabled Boolean      @default(false)
+  blockedCategories  AdCategory[] @default([])
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  estate Estate @relation(fields: [estateId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
 // Tenant root
 // ---------------------------------------------------------------------------
 
@@ -722,8 +949,8 @@ model Estate {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
-  plan                   Plan?                   @relation(fields: [planId], references: [id])
-  organization           Organization?           @relation(fields: [organizationId], references: [id])
+  plan                   Plan?                    @relation(fields: [planId], references: [id])
+  organization           Organization?            @relation(fields: [organizationId], references: [id])
   members                EstateMember[]
   blocks                 Block[]
   streets                Street[]
@@ -739,6 +966,7 @@ model Estate {
   accountCredits         AccountCredit[]
   billingDisputes        BillingDispute[]
   onboarding             EstateOnboarding?
+  advertisingPolicy      EstateAdvertisingPolicy?
   sequences              EstateSequence[]
   visitorPasses          VisitorPass[]
   gateEntries            GateEntry[]

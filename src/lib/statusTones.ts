@@ -1,5 +1,7 @@
 import type {
+  AdvertiserStatus,
   BillingDisputeStatus,
+  CampaignStatus,
   ClassifiedListingStatus,
   CommunityReportStatus,
   DemoRequestStatus,
@@ -96,4 +98,23 @@ export const ORGANIZATION_STATUS_TONE: Record<OrganizationStatus, Tone> = {
   SUSPENDED: "danger",
   CANCELLED: "danger",
   ARCHIVED: "neutral",
+};
+
+export const ADVERTISER_STATUS_TONE: Record<AdvertiserStatus, Tone> = {
+  PENDING_REVIEW: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+  SUSPENDED: "danger",
+  ACTIVE: "success",
+  INACTIVE: "neutral",
+};
+
+export const CAMPAIGN_STATUS_TONE: Record<CampaignStatus, Tone> = {
+  DRAFT: "neutral",
+  PENDING_REVIEW: "warning",
+  APPROVED: "success",
+  REJECTED: "danger",
+  ACTIVE: "success",
+  PAUSED: "warning",
+  COMPLETED: "neutral",
 };

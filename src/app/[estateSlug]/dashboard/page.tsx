@@ -13,6 +13,8 @@ import { getResidentByUserId } from "@/server/modules/residents/service";
 import { listPassesForResident, passStatus } from "@/server/modules/visitors/service";
 import { getMaintenanceSummary, listTicketsForResident } from "@/server/modules/maintenance/service";
 import { countUnreadNotifications, listAnnouncements } from "@/server/modules/announcements/service";
+import { getEligibleCampaign, recordImpression } from "@/server/modules/advertising/service";
+import { SponsoredCard } from "./SponsoredCard";
 
 interface EstateLocale {
   currency: string;
@@ -269,7 +271,7 @@ async function ResidentOverview({
     );
   }
 
-  const [outstandingKobo, unreadCount, occupancy, passes, tickets, announcements, invoices] = await Promise.all([
+  const [outstandingKobo, unreadCount, occupancy, passes, tickets, announcements, invoices, sponsoredCampaign] = await Promise.all([
     getResidentOutstandingBalanceKobo(estateId, resident.id),
     countUnreadNotifications(estateId, resident.id),
     prisma.occupancy.findFirst({
@@ -280,7 +282,12 @@ async function ResidentOverview({
     listTicketsForResident(estateId, resident.id),
     listAnnouncements(estateId),
     listInvoicesForResident(estateId, resident.id),
+    getEligibleCampaign(estateId, userId, "RESIDENT_HOME_FEED"),
   ]);
+
+  if (sponsoredCampaign) {
+    await recordImpression(sponsoredCampaign.id, userId, estateId, "RESIDENT_HOME_FEED");
+  }
 
   const money = (amountKobo: number) => formatMoney(amountKobo, estateLocale.currency, estateLocale.locale);
   const upcomingOrActivePasses = passes.filter((p) => {
@@ -377,6 +384,9 @@ async function ResidentOverview({
           </div>
         )}
       </div>
+
+      {/* Sponsored / Offers Near You — never above operational content, per AGENTS.md advertising spec section 2. */}
+      {sponsoredCampaign && <SponsoredCard estateSlug={estateSlug} campaign={sponsoredCampaign} />}
 
       <Link href={`/${estateSlug}/notifications`}>
         <Card className="flex items-center justify-between transition-shadow hover:shadow-md">

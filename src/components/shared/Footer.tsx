@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/estate-management", label: "Estate Management" },
   { href: "/shortlet-management", label: "Shortlet" },
   { href: "/security", label: "Security" },
+  { href: "/advertise", label: "Advertise" },
   { href: "/login", label: "Log In" },
   { href: "/request-demo", label: "Request a Demo" },
 ];
