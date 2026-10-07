@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/server/db/client";
 import { NotFoundError } from "@/lib/errors";
-import { addHouseholdMember, findHouseholdMembersByName, listHouseholdMembers, removeHouseholdMember } from "../service";
+import { addHouseholdMember, findHouseholdMembersByName, listHouseholdNamesByResident, listHouseholdMembers, removeHouseholdMember } from "../service";
 
 describe("Household members (integration)", () => {
   let estateId: string;
@@ -48,6 +48,13 @@ describe("Household members (integration)", () => {
 
     await removeHouseholdMember(estateId, userId, residentB, mine.id);
     expect(await listHouseholdMembers(estateId, residentB)).toHaveLength(0);
+  });
+
+  it("lists household names for the admin by resident, within one estate, without phones", async () => {
+    const map = await listHouseholdNamesByResident(estateId);
+    expect(map.get(residentA)?.map((m) => m.fullName)).toContain("Funmi Okoro");
+    expect(map.has(residentOther)).toBe(false);
+    expect(Object.keys(map.get(residentA)![0])).not.toContain("phone");
   });
 
   it("gate lookup finds the household by name, within the estate only, without exposing phone numbers", async () => {

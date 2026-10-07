@@ -3,13 +3,15 @@ import { Badge, Button, Card } from "@/components/shared/ui";
 import { requireEstatePermission } from "@/server/auth/guards";
 import { guardPage } from "@/server/auth/pageGuard";
 import { listResidents } from "@/server/modules/residents/service";
+import { listHouseholdNamesByResident } from "@/server/modules/household/service";
+import { HOUSEHOLD_RELATIONSHIP_LABELS } from "@/server/modules/household/labels";
 import { moveOutResidentAction } from "./actions";
 import { InviteResidentButton } from "./InviteResidentButton";
 
 export default async function ResidentsPage({ params }: { params: Promise<{ estateSlug: string }> }) {
   const { estateSlug } = await params;
   const { membership } = await guardPage(() => requireEstatePermission(estateSlug, "residents:*"));
-  const residents = await listResidents(membership.estateId);
+  const [residents, householdByResident] = await Promise.all([listResidents(membership.estateId), listHouseholdNamesByResident(membership.estateId)]);
 
   return (
     <div className="space-y-6">
@@ -48,6 +50,11 @@ export default async function ResidentsPage({ params }: { params: Promise<{ esta
                     {resident.vehicles.length > 0 && (
                       <p className="mt-1 text-xs text-slate-400">
                         Vehicles: {resident.vehicles.map((v) => v.plateNumber).join(", ")}
+                      </p>
+                    )}
+                    {(householdByResident.get(resident.id) ?? []).length > 0 && (
+                      <p className="mt-1 text-xs text-slate-400">
+                        Household: {(householdByResident.get(resident.id) ?? []).map((m) => `${m.fullName} (${HOUSEHOLD_RELATIONSHIP_LABELS[m.relationship]})`).join(", ")}
                       </p>
                     )}
                   </div>

@@ -68,3 +68,15 @@ export async function findHouseholdMembersByName(estateId: string, query: string
     take: 15,
   });
 }
+
+/** Names and relationships only (no phone numbers) for the estate admin's resident list, grouped by resident. */
+export async function listHouseholdNamesByResident(estateId: string) {
+  const rows = await prisma.householdMember.findMany({
+    where: { estateId },
+    select: { residentId: true, fullName: true, relationship: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const byResident = new Map<string, { fullName: string; relationship: HouseholdRelationship }[]>();
+  for (const r of rows) byResident.set(r.residentId, [...(byResident.get(r.residentId) ?? []), r]);
+  return byResident;
+}
