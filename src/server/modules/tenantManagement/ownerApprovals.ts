@@ -2,6 +2,7 @@ import { prisma } from "@/server/db/client";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import type { CurrentUser } from "@/server/auth/session";
+import { notifyManagersOfDecision, notifyOwnerOfApproval } from "./approvalEmails";
 import { assertPropertyAccess, requirePropertyOwner } from "./access";
 
 export type OwnerDecision = "APPROVE" | "REJECT" | "REQUEST_INFO";
@@ -68,6 +69,7 @@ export async function decideExpense(actor: CurrentUser, expenseId: string, decis
     after: { approvalStatus: updated.approvalStatus, amountMinor: expenseAmountMinor(expense), note: trimmed ?? null },
   });
 
+  await notifyManagersOfDecision(expense.id, decision, trimmed ?? null);
   return updated;
 }
 
@@ -93,6 +95,7 @@ export async function respondToInfoRequest(actor: CurrentUser, expenseId: string
     entityId: expenseId,
     after: { note: trimmed },
   });
+  await notifyOwnerOfApproval(expenseId, "answered");
 }
 
 /** Only the property's own owner can set (or clear, with null) their approval limit. */

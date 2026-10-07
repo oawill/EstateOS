@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import type { CurrentUser } from "@/server/auth/session";
 import { assertPropertyAccess } from "./access";
+import { notifyOwnerOfApproval } from "./approvalEmails";
 import { nextMaintenanceRequestCode } from "./sequence";
 import type { CreateMaintenanceRequestInput, RecordMaintenanceExpenseInput } from "./schema";
 
@@ -108,6 +109,7 @@ export async function recordMaintenanceExpense(actor: CurrentUser, input: Record
     after: expense,
   });
 
+  if (needsOwnerApproval) await notifyOwnerOfApproval(expense.id, "new");
   return expense;
 }
 
