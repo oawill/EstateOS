@@ -15,6 +15,7 @@ const MORE_ITEMS = [
   { href: "community", label: "Community" },
   { href: "packages", label: "My Packages" },
   { href: "amenities", label: "Amenities" },
+  { href: "documents", label: "Documents" },
   { href: "marketplace", label: "Marketplace" },
   { href: "my/utilities", label: "Utilities" },
   { href: "vehicles", label: "My Vehicles" },

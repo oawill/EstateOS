@@ -453,6 +453,7 @@ model User {
   advertiserProfile          Advertiser?
   adHides                    AdHide[]
   adReports                  AdReport[]
+  estateDocuments            EstateDocument[]
 }
 
 // Only the SHA-256 hash of the raw token is ever stored — the raw,
@@ -1009,6 +1010,7 @@ model Estate {
   availabilityBlocks     AvailabilityBlock[]
   housekeepingTasks      HousekeepingTask[]
   securityIncidents      SecurityIncident[]
+  estateDocuments        EstateDocument[]
 
   @@index([subscriptionStatus])
 }
@@ -4090,4 +4092,29 @@ model AmenityBooking {
   @@index([amenityId, startsAt])
   @@index([residentId])
   @@index([estateId, startsAt])
+}
+
+enum EstateDocumentCategory {
+  RULES_AND_BYLAWS
+  MEETING_MINUTES
+  FORMS
+  NOTICES
+  OTHER
+}
+
+/// A document the estate shares with residents. Stored as a link, not a file,
+/// so it works without file storage configured (e.g. a shared-drive or PDF URL).
+model EstateDocument {
+  id               String                 @id @default(cuid())
+  estateId         String
+  title            String
+  category         EstateDocumentCategory @default(OTHER)
+  url              String
+  uploadedByUserId String
+  createdAt        DateTime               @default(now())
+
+  estate     Estate @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  uploadedBy User   @relation(fields: [uploadedByUserId], references: [id])
+
+  @@index([estateId, createdAt])
 }
