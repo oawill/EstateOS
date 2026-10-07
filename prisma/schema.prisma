@@ -449,6 +449,7 @@ model User {
   shortletGuestProfile       ShortletGuest?
   reportedSecurityIncidents  SecurityIncident[]
   shiftHandovers             ShiftHandover[]
+  receivedParcels            Parcel[]
   advertiserProfile          Advertiser?
   adHides                    AdHide[]
   adReports                  AdReport[]
@@ -971,6 +972,7 @@ model Estate {
   onboarding             EstateOnboarding?
   advertisingPolicy      EstateAdvertisingPolicy?
   shiftHandovers         ShiftHandover[]
+  parcels                Parcel[]
   sequences              EstateSequence[]
   visitorPasses          VisitorPass[]
   gateEntries            GateEntry[]
@@ -1146,6 +1148,7 @@ model Resident {
   occupancies            Occupancy[]
   vehicles               Vehicle[]
   invoices               Invoice[]
+  parcels                Parcel[]
   accountCredits         AccountCredit[]
   billingDisputes        BillingDispute[]
   visitorPasses          VisitorPass[]
@@ -4006,4 +4009,33 @@ model ShiftHandover {
   author User   @relation(fields: [authorUserId], references: [id])
 
   @@index([estateId, createdAt])
+}
+
+enum ParcelStatus {
+  AWAITING_COLLECTION
+  COLLECTED
+  RETURNED
+}
+
+/// A parcel/delivery security accepted at the gate on a resident's behalf.
+/// Never holds contents or payment — just that it arrived, who has it, and
+/// whether it has been collected.
+model Parcel {
+  id               String       @id @default(cuid())
+  estateId         String
+  residentId       String
+  description      String
+  carrier          String?
+  status           ParcelStatus @default(AWAITING_COLLECTION)
+  receivedByUserId String
+  receivedAt       DateTime     @default(now())
+  collectedAt      DateTime?
+  collectedByName  String?
+
+  estate     Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  resident   Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+  receivedBy User     @relation(fields: [receivedByUserId], references: [id])
+
+  @@index([estateId, status])
+  @@index([residentId])
 }

@@ -15,6 +15,7 @@ import { getMaintenanceSummary, listTicketsForResident } from "@/server/modules/
 import { countUnreadNotifications, listAnnouncements } from "@/server/modules/announcements/service";
 import { getEligibleCampaign, recordImpression } from "@/server/modules/advertising/service";
 import { SponsoredCard } from "./SponsoredCard";
+import { countAwaitingParcelsForResident } from "@/server/modules/parcels/service";
 
 interface EstateLocale {
   currency: string;
@@ -271,7 +272,7 @@ async function ResidentOverview({
     );
   }
 
-  const [outstandingKobo, unreadCount, occupancy, passes, tickets, announcements, invoices, sponsoredCampaign] = await Promise.all([
+  const [outstandingKobo, unreadCount, occupancy, passes, tickets, announcements, invoices, sponsoredCampaign, parcelsWaiting] = await Promise.all([
     getResidentOutstandingBalanceKobo(estateId, resident.id),
     countUnreadNotifications(estateId, resident.id),
     prisma.occupancy.findFirst({
@@ -283,6 +284,7 @@ async function ResidentOverview({
     listAnnouncements(estateId),
     listInvoicesForResident(estateId, resident.id),
     getEligibleCampaign(estateId, userId, "RESIDENT_HOME_FEED"),
+    countAwaitingParcelsForResident(estateId, resident.id),
   ]);
 
   if (sponsoredCampaign) {
@@ -342,6 +344,17 @@ async function ResidentOverview({
         <QuickAction href={`/${estateSlug}/maintenance/new`} label="Report Issue" icon="issue" />
         <QuickAction href={`/${estateSlug}/emergency`} label="Emergency" icon="emergency" danger />
       </div>
+
+      {parcelsWaiting > 0 && (
+        <Link href={`/${estateSlug}/packages`}>
+          <Card className="flex items-center justify-between border-warning/30 bg-warning/5">
+            <p className="text-sm font-medium">
+              {parcelsWaiting} parcel{parcelsWaiting === 1 ? "" : "s"} waiting at the gate
+            </p>
+            <span className="text-xs font-medium text-primary">View</span>
+          </Card>
+        </Link>
+      )}
 
       {/* Visitors & Gate Passes */}
       <Card className="flex items-center justify-between">

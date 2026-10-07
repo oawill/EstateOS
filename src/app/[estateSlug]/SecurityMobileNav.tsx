@@ -13,6 +13,7 @@ const PRIMARY_ITEMS = [
 
 const MORE_ITEMS = [
   { href: "gate/walk-in", label: "Register Walk-In" },
+  { href: "gate/packages", label: "Parcels" },
   { href: "gate/history", label: "Access History" },
   { href: "gate/handover", label: "Shift Handover" },
   { href: "/account/security", label: "Account" },
