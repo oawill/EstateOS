@@ -72,6 +72,7 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
     { href: "my/utilities", label: "Utilities" },
     { href: "my/bills", label: "My Bills" },
     { href: "vehicles", label: "My Vehicles" },
+    { href: "household", label: "My Household" },
     { href: "emergency", label: "Emergency" },
     { href: "notifications", label: "Notifications" },
   ],

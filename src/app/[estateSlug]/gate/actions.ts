@@ -174,12 +174,25 @@ export async function searchResidentsAction(estateSlug: string, query: string) {
   const residents = await listResidents(membership.estateId);
   const q = query.trim().toLowerCase();
   if (!q) return [];
+  const { findHouseholdMembersByName } = await import("@/server/modules/household/service");
+  const { HOUSEHOLD_RELATIONSHIP_LABELS } = await import("@/server/modules/household/labels");
+  const householdHits = await findHouseholdMembersByName(membership.estateId, q);
+  const householdByResident = new Map(householdHits.map((h) => [h.residentId, h]));
   return residents
-    .filter((r) => `${r.firstName} ${r.lastName}`.toLowerCase().includes(q) || r.occupancies.some((o) => o.unit.label.toLowerCase().includes(q) || o.unit.property.addressLabel.toLowerCase().includes(q)))
+    .filter(
+      (r) =>
+        householdByResident.has(r.id) ||
+        `${r.firstName} ${r.lastName}`.toLowerCase().includes(q) ||
+        r.occupancies.some((o) => o.unit.label.toLowerCase().includes(q) || o.unit.property.addressLabel.toLowerCase().includes(q)),
+    )
     .slice(0, 15)
-    .map((r) => ({
-      id: r.id,
-      name: `${r.firstName} ${r.lastName}`,
-      unit: r.occupancies[0] ? `${r.occupancies[0].unit.property.addressLabel} · ${r.occupancies[0].unit.label}` : "No unit on file",
-    }));
+    .map((r) => {
+      const hit = householdByResident.get(r.id);
+      return {
+        id: r.id,
+        name: `${r.firstName} ${r.lastName}`,
+        unit: r.occupancies[0] ? `${r.occupancies[0].unit.property.addressLabel} · ${r.occupancies[0].unit.label}` : "No unit on file",
+        household: hit ? `${hit.fullName} (${HOUSEHOLD_RELATIONSHIP_LABELS[hit.relationship]})` : undefined,
+      };
+    });
 }

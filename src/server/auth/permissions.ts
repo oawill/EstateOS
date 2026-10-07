@@ -36,6 +36,7 @@ export type Permission =
   | "own-visitors:*"
   | "own-maintenance:*"
   | "own-vehicles:*"
+  | "own-household:*"
   | "own-incidents:create"
   | "own-amenities:*"
   | "own-disputes:*"
@@ -114,6 +115,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "own-visitors:*",
     "own-maintenance:*",
     "own-vehicles:*",
+    "own-household:*",
     "own-incidents:create",
     "own-amenities:*",
     "own-disputes:*",

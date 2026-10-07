@@ -11,6 +11,7 @@ interface ResidentHit {
   id: string;
   name: string;
   unit: string;
+  household?: string;
 }
 
 export function WalkInForm({ estateSlug }: { estateSlug: string }) {
@@ -58,7 +59,7 @@ export function WalkInForm({ estateSlug }: { estateSlug: string }) {
                 }}
                 className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-surface-muted"
               >
-                <span className="font-medium">{r.name}</span> <span className="text-foreground-muted">· {r.unit}</span>
+                <span className="font-medium">{r.name}</span> <span className="text-foreground-muted">· {r.unit}</span>{r.household && <span className="block text-xs text-foreground-muted">Household: {r.household}</span>}
               </button>
             ))}
           </div>

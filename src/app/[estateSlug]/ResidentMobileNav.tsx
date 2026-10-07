@@ -19,6 +19,7 @@ const MORE_ITEMS = [
   { href: "marketplace", label: "Marketplace" },
   { href: "my/utilities", label: "Utilities" },
   { href: "vehicles", label: "My Vehicles" },
+  { href: "household", label: "My Household" },
   { href: "emergency", label: "Emergency" },
   { href: "notifications", label: "Notifications" },
   { href: "/account/security", label: "Account" },
