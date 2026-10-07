@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card } from "@/components/shared/ui";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireUser } from "@/server/auth/session";
@@ -14,6 +15,15 @@ export default async function OwnerMorePage() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">More</h1>
+
+      {access.ownerId && (
+        <Link href="/owner/payouts" className="block">
+          <Card className="hover:border-slate-300">
+            <p className="text-sm font-medium">Payouts</p>
+            <p className="mt-1 text-xs text-foreground-muted">What you are owed, how it was calculated, and when it was paid.</p>
+          </Card>
+        </Link>
+      )}
 
       {access.ownerId && payoutDetails && (
         <Card>

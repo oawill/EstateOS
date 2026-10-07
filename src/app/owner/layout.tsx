@@ -45,6 +45,9 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
             <Link href="/owner/approvals" className="text-sm font-medium text-white/70 hover:text-white">
               Approvals
             </Link>
+            <Link href="/owner/payouts" className="text-sm font-medium text-white/70 hover:text-white">
+              Payouts
+            </Link>
             <Link href="/owner/reports" className="text-sm font-medium text-white/70 hover:text-white">
               Reports
             </Link>
