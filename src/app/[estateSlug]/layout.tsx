@@ -7,6 +7,8 @@ import { requireEstateMember } from "@/server/auth/session";
 import { hasPermission } from "@/server/auth/permissions";
 import { isShortletEnabled } from "@/server/modules/shortlet/settings";
 import { listMembershipsForUser } from "@/server/modules/estates/service";
+import type { Metadata } from "next";
+import { InstallApp } from "@/components/shared/InstallApp";
 import { EstateNav, type EstateNavItem } from "./EstateNav";
 import { ResidentMobileNav } from "./ResidentMobileNav";
 import { SecurityMobileNav } from "./SecurityMobileNav";
@@ -79,6 +81,24 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
   [Role.VENDOR]: [{ href: "jobs", label: "My Jobs" }],
 };
 
+// Residents and security staff install different apps from the same URL space,
+// so the manifest is chosen by the signed-in member's role. Anyone else keeps
+// the site-wide manifest.
+export async function generateMetadata({ params }: { params: Promise<{ estateSlug: string }> }): Promise<Metadata> {
+  const { estateSlug } = await params;
+  try {
+    const { membership } = await requireEstateMember(estateSlug);
+    const app = membership.role === Role.SECURITY ? "security" : membership.role === Role.RESIDENT ? "resident" : null;
+    if (!app) return {};
+    return {
+      manifest: `/manifests/${app}?estate=${encodeURIComponent(estateSlug)}`,
+      appleWebApp: { capable: true, title: app === "security" ? "Gate" : "NidraQ", statusBarStyle: "default" },
+    };
+  } catch {
+    return {};
+  }
+}
+
 export default async function EstateLayout({
   children,
   params,
@@ -143,6 +163,11 @@ export default async function EstateLayout({
           <EstateNav estateSlug={estateSlug} nav={nav} />
         </div>
       </header>
+      {(isResident || isSecurity) && (
+        <div className="px-4">
+          <InstallApp />
+        </div>
+      )}
       <main className={`mx-auto w-full max-w-5xl flex-1 px-4 py-8 ${isResident || isSecurity ? "pb-24 sm:pb-8" : ""}`}>{children}</main>
       {isResident && <ResidentMobileNav estateSlug={estateSlug} />}
       {isSecurity && <SecurityMobileNav estateSlug={estateSlug} />}

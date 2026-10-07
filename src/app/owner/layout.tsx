@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Image from "next/image";
+import { InstallApp } from "@/components/shared/InstallApp";
 import Link from "next/link";
 import { signOut } from "@/server/auth/config";
 import { guardPage } from "@/server/auth/pageGuard";
@@ -6,6 +8,11 @@ import { requireUser } from "@/server/auth/session";
 import { getOwnerAccessContext } from "@/server/modules/owner/access";
 import { OwnerMobileNav } from "./OwnerMobileNav";
 import { PortfolioSwitcher } from "./PortfolioSwitcher";
+
+export const metadata: Metadata = {
+  manifest: "/manifests/owner",
+  appleWebApp: { capable: true, title: "NidraQ Owner", statusBarStyle: "default" },
+};
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   // A landlord (Tenant Management PropertyOwner) and an estate executive
@@ -60,6 +67,9 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
 
       <PortfolioSwitcher hasRentalPortfolio={access.ownerId !== null} executiveEstates={access.executiveEstates} />
 
+      <div className="px-4">
+        <InstallApp />
+      </div>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
 
       <OwnerMobileNav />
