@@ -4,11 +4,14 @@ import { requireUser } from "@/server/auth/session";
 import { getAccessibleContext } from "@/server/modules/tenantManagement/access";
 import { listAccessibleProperties } from "@/server/modules/tenantManagement/property";
 import { formatNaira } from "@/lib/utils";
+import { PropertyDocuments } from "@/components/shared/PropertyDocuments";
+import { listPropertyDocuments } from "@/server/modules/tenantManagement/propertyDocuments";
 import { CreatePropertyForm, CreateUnitForm, AssignManagerForm, AssignShortletOperatorForm } from "./PropertyForms";
 
 export default async function PropertiesPage() {
   const ctx = await guardPage(async () => getAccessibleContext(await requireUser()));
   const properties = await listAccessibleProperties(ctx.user);
+  const documentsByProperty = new Map(await Promise.all(properties.map(async (p) => [p.id, await listPropertyDocuments(ctx.user, p.id)] as const)));
 
   return (
     <div className="space-y-6">
@@ -66,6 +69,13 @@ export default async function PropertiesPage() {
               ))}
               {property.units.length === 0 && <p className="text-sm text-foreground-muted">No units added yet.</p>}
             </div>
+
+            <details className="mt-4 border-t border-border pt-4">
+              <summary className="cursor-pointer text-sm font-medium">Documents ({documentsByProperty.get(property.id)?.length ?? 0})</summary>
+              <div className="mt-3">
+                <PropertyDocuments propertyId={property.id} documents={(documentsByProperty.get(property.id) ?? []).map((d) => ({ id: d.id, title: d.title, category: d.category, url: d.url }))} />
+              </div>
+            </details>
 
             {ctx.ownerId === property.ownerId && (
               <div className="mt-4 space-y-3 border-t border-border pt-4">

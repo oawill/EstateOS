@@ -11,11 +11,14 @@ import { formatDate, formatNaira } from "@/lib/utils";
 import { NotFoundError } from "@/lib/errors";
 import { getOwnerAccessContext } from "@/server/modules/owner/access";
 import { ApprovalLimitForm } from "./ApprovalLimitForm";
+import { PropertyDocuments } from "@/components/shared/PropertyDocuments";
+import { listPropertyDocuments } from "@/server/modules/tenantManagement/propertyDocuments";
 
 const TABS = [
   { key: "overview", label: "Overview" },
   { key: "financials", label: "Financials" },
   { key: "maintenance", label: "Maintenance" },
+  { key: "documents", label: "Documents" },
   { key: "activity", label: "Activity" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -73,6 +76,7 @@ export default async function OwnerPropertyDetailPage({
       {tab === "overview" && <OverviewTab property={property} canSetLimit={isOwnerOfProperty} />}
       {tab === "financials" && <FinancialsTab user={user} propertyId={id} />}
       {tab === "maintenance" && <MaintenanceTab propertyId={id} />}
+      {tab === "documents" && <DocumentsTab user={user} propertyId={id} />}
       {tab === "activity" && <ActivityTab propertyId={id} />}
     </div>
   );
@@ -176,6 +180,11 @@ async function MaintenanceTab({ propertyId }: { propertyId: string }) {
       ))}
     </div>
   );
+}
+
+async function DocumentsTab({ user, propertyId }: { user: CurrentUser; propertyId: string }) {
+  const documents = await listPropertyDocuments(user, propertyId);
+  return <PropertyDocuments propertyId={propertyId} documents={documents.map((d) => ({ id: d.id, title: d.title, category: d.category, url: d.url }))} />;
 }
 
 async function ActivityTab({ propertyId }: { propertyId: string }) {

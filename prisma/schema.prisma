@@ -2557,6 +2557,7 @@ model ManagedProperty {
   owner               PropertyOwner                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   units               RentalUnit[]
   managers            PropertyManager[]
+  documents           PropertyDocument[]
   inspections         PropertyInspection[]
   maintenanceRequests MaintenanceRequest[]
   statements          LandlordStatement[]
@@ -4186,4 +4187,33 @@ model HouseholdMember {
 
   @@index([estateId])
   @@index([residentId])
+}
+
+// ---------------------------------------------------------------------------
+// Property document vault
+// ---------------------------------------------------------------------------
+
+enum PropertyDocumentCategory {
+  LEASE_AGREEMENT
+  INSPECTION_REPORT
+  INSURANCE
+  TITLE_AND_OWNERSHIP
+  COMPLIANCE
+  OTHER
+}
+
+// Links to a property documents (kept wherever the owner or manager stores
+// them); this is an index with access control, not file hosting.
+model PropertyDocument {
+  id            String                   @id @default(cuid())
+  propertyId    String
+  title         String
+  category      PropertyDocumentCategory
+  url           String
+  addedByUserId String
+  createdAt     DateTime                 @default(now())
+
+  property ManagedProperty @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
 }
