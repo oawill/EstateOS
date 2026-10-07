@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/server/db/client";
 import { ForbiddenError, NotFoundError } from "@/lib/errors";
+import { zonedToUtc } from "@/lib/zonedTime";
 import { bookAmenity, cancelBooking, createAmenity, listAmenities, listBookingsForResident, listUpcomingBookings } from "../service";
 
 function futureDate(daysAhead: number): string {
@@ -53,6 +54,20 @@ describe("Amenity booking (integration)", () => {
     const date = futureDate(3);
     await expect(bookAmenity(estateId, residentB, { amenityId, date, startTime: "11:00", slots: 1 })).rejects.toThrow(ForbiddenError);
     await expect(bookAmenity(estateId, residentB, { amenityId, date, startTime: "12:00", slots: 1 })).resolves.toBeTruthy();
+  });
+
+  it("lets exactly one of many simultaneous requests take the last place in a slot", async () => {
+    const racers = await Promise.all(
+      Array.from({ length: 8 }, (_, i) => prisma.resident.create({ data: { estateId, firstName: "Racer", lastName: String(i) } })),
+    );
+    const date = futureDate(6);
+    const results = await Promise.allSettled(
+      racers.map((r) => bookAmenity(estateId, r.id, { amenityId, date, startTime: "15:00", slots: 1 })),
+    );
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const confirmed = await prisma.amenityBooking.count({ where: { amenityId, status: "CONFIRMED", startsAt: zonedToUtc(date, "15:00", "Africa/Lagos") } });
+    expect(confirmed).toBe(1);
   });
 
   it("enforces opening hours, slot grid, max slots and the future-only window", async () => {

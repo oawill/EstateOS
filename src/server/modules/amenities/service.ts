@@ -90,6 +90,9 @@ export async function bookAmenity(
   if (startsAt.getTime() > now.getTime() + MAX_DAYS_AHEAD * 86_400_000) throw new ForbiddenError(`Bookings open up to ${MAX_DAYS_AHEAD} days ahead.`);
 
   const booking = await prisma.$transaction(async (tx) => {
+    // Serialise bookings per amenity: without this, simultaneous requests all
+    // read the same "free" count and each insert, overbooking the slot.
+    await tx.$queryRaw`SELECT id FROM "Amenity" WHERE id = ${amenity.id} FOR UPDATE`;
     const overlapping = await tx.amenityBooking.findMany({
       where: { amenityId: amenity.id, status: "CONFIRMED", startsAt: { lt: endsAt }, endsAt: { gt: startsAt } },
       select: { residentId: true },
