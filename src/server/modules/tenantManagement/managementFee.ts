@@ -86,7 +86,7 @@ export async function generateLandlordSettlement(actor: CurrentUser, input: Gene
     }),
     prisma.maintenanceExpense.aggregate({
       _sum: { finalAmountMinor: true, approvedAmountMinor: true },
-      where: { isPaid: true, createdAt: { gte: periodStart, lt: periodEnd }, request: { propertyId: { in: propertyIds } } },
+      where: { isPaid: true, approvalStatus: { in: ["NOT_REQUIRED", "APPROVED"] }, createdAt: { gte: periodStart, lt: periodEnd }, request: { propertyId: { in: propertyIds } } },
     }),
     prisma.managementAgreement.findMany({ where: { propertyId: { in: propertyIds } } }),
   ]);

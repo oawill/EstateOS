@@ -6,6 +6,7 @@ import { requireUser } from "@/server/auth/session";
 import { getDashboardKpis } from "@/server/modules/tenantManagement/dashboard";
 import { listAccessibleProperties } from "@/server/modules/tenantManagement/property";
 import { getOwnerAccessContext } from "@/server/modules/owner/access";
+import { countPendingApprovalsForOwner } from "@/server/modules/tenantManagement/ownerApprovals";
 import { formatDate, formatNaira } from "@/lib/utils";
 
 function daysUntil(date: Date): number {
@@ -40,13 +41,27 @@ export default async function OwnerHomePage() {
     );
   }
 
-  const [kpis, properties] = await Promise.all([getDashboardKpis(user), listAccessibleProperties(user)]);
+  const [kpis, properties, pendingApprovals] = await Promise.all([
+    getDashboardKpis(user),
+    listAccessibleProperties(user),
+    countPendingApprovalsForOwner(access.ownerId),
+  ]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   const attention: { key: string; title: string; where: string; detail: string; tone: "danger" | "warning"; href: string }[] = [];
 
+  if (pendingApprovals > 0) {
+    attention.push({
+      key: "pending-approvals",
+      title: "Approval required",
+      where: `${pendingApprovals} expense${pendingApprovals === 1 ? "" : "s"}`,
+      detail: "Waiting for your decision",
+      tone: "danger",
+      href: "/owner/approvals",
+    });
+  }
   if (kpis.overdueObligationCount > 0) {
     attention.push({
       key: "overdue-rent",

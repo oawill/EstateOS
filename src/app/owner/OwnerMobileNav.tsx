@@ -11,6 +11,11 @@ const ITEMS = [
     icon: <path d="M3 21V8l9-5 9 5v13M3 21h18M9 21v-6h6v6" strokeLinecap="round" strokeLinejoin="round" />,
   },
   {
+    href: "/owner/approvals",
+    label: "Approvals",
+    icon: <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />,
+  },
+  {
     href: "/owner/reports",
     label: "Reports",
     icon: <path d="M9 17V9m3 8V5m3 12v-4M4 21h16" strokeLinecap="round" strokeLinejoin="round" />,

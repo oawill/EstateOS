@@ -35,6 +35,7 @@ export async function generateLandlordStatement(actorOwnerId: string, ownerId: s
     where: {
       createdAt: { gte: periodStart, lt: periodEnd },
       isPaid: true,
+      approvalStatus: { in: ["NOT_REQUIRED", "APPROVED"] },
       request: { propertyId: { in: propertyIds } },
     },
     include: { request: true },

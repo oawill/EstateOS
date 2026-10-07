@@ -449,6 +449,7 @@ model User {
   shortletGuestProfile       ShortletGuest?
   reportedSecurityIncidents  SecurityIncident[]
   shiftHandovers             ShiftHandover[]
+  expenseApprovalComments    ExpenseApprovalComment[]
   receivedParcels            Parcel[]
   advertiserProfile          Advertiser?
   adHides                    AdHide[]
@@ -1154,6 +1155,7 @@ model Resident {
   invoices               Invoice[]
   amenityBookings        AmenityBooking[]
   parcels                Parcel[]
+  householdMembers       HouseholdMember[]
   accountCredits         AccountCredit[]
   billingDisputes        BillingDispute[]
   visitorPasses          VisitorPass[]
@@ -2532,22 +2534,25 @@ model PropertyOwner {
 }
 
 model ManagedProperty {
-  id             String                 @id @default(cuid())
-  ownerId        String
-  name           String
-  addressLine    String
-  city           String
-  state          String?
-  country        String                 @default("NG")
-  propertyType   RentalPropertyType
-  imageUrls      String[]               @default([])
-  notes          String?
+  id                          String                 @id @default(cuid())
+  ownerId                     String
+  name                        String
+  addressLine                 String
+  city                        String
+  state                       String?
+  country                     String                 @default("NG")
+  propertyType                RentalPropertyType
+  imageUrls                   String[]               @default([])
+  notes                       String?
   // Gates whether an assigned manager can approve/reject/counter a rental
   // application outright, or must route the decision to the owner (see
   // ApplicationDecision and the leasing dashboard's owner-approval queue).
-  approvalPolicy PropertyApprovalPolicy @default(MANAGER_CAN_APPROVE)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  approvalPolicy              PropertyApprovalPolicy @default(MANAGER_CAN_APPROVE)
+  // Maintenance spend above this needs the owner's approval. Null = never
+  // asked. Set by the owner, never hardcoded.
+  ownerApprovalThresholdMinor Int?
+  createdAt                   DateTime               @default(now())
+  updatedAt                   DateTime               @updatedAt
 
   owner               PropertyOwner                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   units               RentalUnit[]
@@ -3035,7 +3040,13 @@ model MaintenanceExpense {
   receiptUrl          String?
   createdAt           DateTime @default(now())
 
-  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  // Owner sign-off. NOT_REQUIRED unless the property has an approval
+  // threshold and this expense exceeds it (see recordMaintenanceExpense).
+  approvalStatus ExpenseApprovalStatus @default(NOT_REQUIRED)
+  ownerDecidedAt DateTime?
+
+  request  MaintenanceRequest       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  comments ExpenseApprovalComment[]
 
   @@index([requestId])
 }
@@ -4117,4 +4128,62 @@ model EstateDocument {
   uploadedBy User   @relation(fields: [uploadedByUserId], references: [id])
 
   @@index([estateId, createdAt])
+}
+
+enum ExpenseApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+  INFO_REQUESTED
+}
+
+enum ApprovalCommentRole {
+  OWNER
+  MANAGER
+}
+
+/// The conversation attached to an expense approval, kept with the record.
+model ExpenseApprovalComment {
+  id           String              @id @default(cuid())
+  expenseId    String
+  authorUserId String
+  role         ApprovalCommentRole
+  body         String
+  createdAt    DateTime            @default(now())
+
+  expense MaintenanceExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  author  User               @relation(fields: [authorUserId], references: [id])
+
+  @@index([expenseId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Household members
+// ---------------------------------------------------------------------------
+
+enum HouseholdRelationship {
+  SPOUSE
+  CHILD
+  PARENT
+  RELATIVE
+  DOMESTIC_STAFF
+  OTHER
+}
+
+// People who live or work in a resident home, listed by the resident so
+// security can recognise them at the gate. Not a login, just a directory.
+model HouseholdMember {
+  id           String                @id @default(cuid())
+  estateId     String
+  residentId   String
+  fullName     String
+  relationship HouseholdRelationship
+  phone        String?
+  createdAt    DateTime              @default(now())
+
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([estateId])
+  @@index([residentId])
 }

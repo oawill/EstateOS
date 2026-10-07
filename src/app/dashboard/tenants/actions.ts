@@ -27,6 +27,7 @@ import { createTenant } from "@/server/modules/tenantManagement/tenant";
 import { createLease, renewLease, markLeaseNoticeGiven } from "@/server/modules/tenantManagement/lease";
 import { recordPayment, reversePayment, waiveObligation } from "@/server/modules/tenantManagement/payments";
 import { updateMaintenanceStatus, recordMaintenanceExpense } from "@/server/modules/tenantManagement/maintenance";
+import { respondToInfoRequest } from "@/server/modules/tenantManagement/ownerApprovals";
 import { startMoveIn, advanceMoveInStage, startMoveOut, advanceMoveOutStage } from "@/server/modules/tenantManagement/moveInOut";
 import { createPropertyInspection } from "@/server/modules/tenantManagement/inspection";
 import { createTenantCharge } from "@/server/modules/tenantManagement/charges";
@@ -227,6 +228,18 @@ export async function recordMaintenanceExpenseAction(_prev: ActionState, formDat
     return formError(error);
   }
   revalidatePath("/dashboard/tenants/maintenance");
+  return {};
+}
+
+export async function respondToApprovalQuestionAction(expenseId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await respondToInfoRequest(user, expenseId, String(formData.get("body") ?? ""));
+  } catch (error) {
+    return formError(error);
+  }
+  revalidatePath("/dashboard/tenants/maintenance");
+  revalidatePath("/owner/approvals");
   return {};
 }
 

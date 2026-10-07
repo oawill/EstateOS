@@ -1,6 +1,6 @@
 import { RentalMaintenanceStatus } from "@prisma/client";
 import { prisma } from "@/server/db/client";
-import { NotFoundError } from "@/lib/errors";
+import { ForbiddenError, NotFoundError } from "@/lib/errors";
 import { recordAudit } from "@/server/modules/audit";
 import type { CurrentUser } from "@/server/auth/session";
 import { assertPropertyAccess } from "./access";
@@ -69,9 +69,22 @@ export async function updateMaintenanceStatus(actor: CurrentUser, requestId: str
 }
 
 export async function recordMaintenanceExpense(actor: CurrentUser, input: RecordMaintenanceExpenseInput) {
-  const request = await prisma.maintenanceRequest.findUnique({ where: { id: input.requestId } });
+  const request = await prisma.maintenanceRequest.findUnique({ where: { id: input.requestId }, include: { property: true } });
   if (!request) throw new NotFoundError("Maintenance request");
   await assertPropertyAccess(actor, request.propertyId);
+
+  // Owner sign-off is required only when the owner has set a threshold and this
+  // spend exceeds it — and never when the owner is the one recording it.
+  const amountMinor = input.finalAmountMinor ?? input.approvedAmountMinor ?? input.estimateMinor ?? 0;
+  const threshold = request.property.ownerApprovalThresholdMinor;
+  const ownerProfile = await prisma.propertyOwner.findUnique({ where: { userId: actor.id } });
+  const actorIsOwner = ownerProfile?.id === request.property.ownerId;
+  const needsOwnerApproval = threshold !== null && amountMinor > threshold && !actorIsOwner;
+
+  // Money can't be marked paid while the owner hasn't approved it.
+  if (input.isPaid && needsOwnerApproval) {
+    throw new ForbiddenError("This expense is above the owner's approval limit — it can't be marked paid until the owner approves it.");
+  }
 
   const expense = await prisma.maintenanceExpense.create({
     data: {
@@ -82,6 +95,7 @@ export async function recordMaintenanceExpense(actor: CurrentUser, input: Record
       approvedAmountMinor: input.approvedAmountMinor ?? null,
       finalAmountMinor: input.finalAmountMinor ?? null,
       isPaid: input.isPaid,
+      approvalStatus: needsOwnerApproval ? "PENDING" : "NOT_REQUIRED",
     },
   });
 
@@ -100,7 +114,7 @@ export async function recordMaintenanceExpense(actor: CurrentUser, input: Record
 export async function listAccessibleMaintenanceRequests(propertyIds: string[] | "all") {
   return prisma.maintenanceRequest.findMany({
     where: propertyIds === "all" ? undefined : { propertyId: { in: propertyIds } },
-    include: { property: true, unit: true, tenant: true, expenses: true },
+    include: { property: true, unit: true, tenant: true, expenses: { include: { comments: { include: { author: { select: { name: true } } }, orderBy: { createdAt: "asc" } } } } },
     orderBy: { createdAt: "desc" },
   });
 }

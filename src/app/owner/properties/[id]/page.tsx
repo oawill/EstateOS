@@ -9,6 +9,8 @@ import { getPropertyFinancialSummary } from "@/server/modules/tenantManagement/d
 import { listAccessibleMaintenanceRequests } from "@/server/modules/tenantManagement/maintenance";
 import { formatDate, formatNaira } from "@/lib/utils";
 import { NotFoundError } from "@/lib/errors";
+import { getOwnerAccessContext } from "@/server/modules/owner/access";
+import { ApprovalLimitForm } from "./ApprovalLimitForm";
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -39,6 +41,9 @@ export default async function OwnerPropertyDetailPage({
     throw error;
   }
 
+  const access = await getOwnerAccessContext(user.id);
+  const isOwnerOfProperty = access.ownerId !== null && access.ownerId === property.ownerId;
+
   return (
     <div className="space-y-6">
       <div>
@@ -65,7 +70,7 @@ export default async function OwnerPropertyDetailPage({
         ))}
       </div>
 
-      {tab === "overview" && <OverviewTab property={property} />}
+      {tab === "overview" && <OverviewTab property={property} canSetLimit={isOwnerOfProperty} />}
       {tab === "financials" && <FinancialsTab user={user} propertyId={id} />}
       {tab === "maintenance" && <MaintenanceTab propertyId={id} />}
       {tab === "activity" && <ActivityTab propertyId={id} />}
@@ -73,9 +78,10 @@ export default async function OwnerPropertyDetailPage({
   );
 }
 
-function OverviewTab({ property }: { property: Awaited<ReturnType<typeof getPropertyDetail>> }) {
+function OverviewTab({ property, canSetLimit }: { property: Awaited<ReturnType<typeof getPropertyDetail>>; canSetLimit: boolean }) {
   return (
     <div className="space-y-3">
+      {canSetLimit && <ApprovalLimitForm propertyId={property.id} currentNaira={property.ownerApprovalThresholdMinor === null ? "" : String(property.ownerApprovalThresholdMinor / 100)} />}
       {property.units.map((unit) => {
         const activeLease = unit.leases[0];
         const currentTenant = unit.tenants.find((t) => t.status === "ACTIVE");

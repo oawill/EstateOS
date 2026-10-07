@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import type { RentalMaintenanceStatus } from "@prisma/client";
 import { Button, FormError, Input, Label, Textarea, Checkbox } from "@/components/shared/ui";
-import { updateMaintenanceStatusAction, recordMaintenanceExpenseAction, type ActionState } from "../actions";
+import { updateMaintenanceStatusAction, recordMaintenanceExpenseAction, respondToApprovalQuestionAction, type ActionState } from "../actions";
 
 const initialState: ActionState = {};
 const STATUS_FLOW: RentalMaintenanceStatus[] = ["SUBMITTED", "ACKNOWLEDGED", "ASSIGNED", "IN_PROGRESS", "WAITING", "COMPLETED", "CLOSED"];
@@ -17,6 +17,19 @@ export function StatusControls({ requestId, status }: { requestId: string; statu
     <Button type="button" variant="secondary" onClick={() => updateMaintenanceStatusAction(requestId, next)}>
       Mark {next.replaceAll("_", " ")}
     </Button>
+  );
+}
+
+export function ApprovalReplyForm({ expenseId }: { expenseId: string }) {
+  const [state, formAction, pending] = useActionState(respondToApprovalQuestionAction.bind(null, expenseId), initialState);
+  return (
+    <form action={formAction} className="mt-2 space-y-2">
+      <FormError message={state.error} />
+      <Textarea name="body" rows={2} required placeholder="Answer the owner's question" />
+      <Button type="submit" variant="secondary" disabled={pending}>
+        {pending ? "Sending…" : "Reply to owner"}
+      </Button>
+    </form>
   );
 }
 

@@ -4,7 +4,7 @@ import { requireUser } from "@/server/auth/session";
 import { getAuthorizedPropertyIds } from "@/server/modules/tenantManagement/access";
 import { listAccessibleMaintenanceRequests } from "@/server/modules/tenantManagement/maintenance";
 import { formatNaira, formatDate } from "@/lib/utils";
-import { StatusControls, ExpenseForm } from "./MaintenanceActions";
+import { StatusControls, ExpenseForm, ApprovalReplyForm } from "./MaintenanceActions";
 
 const PRIORITY_TONE = { LOW: "neutral", MEDIUM: "info", HIGH: "warning", URGENT: "danger" } as const;
 
@@ -44,11 +44,26 @@ export default async function MaintenancePage() {
             {request.expenses.length > 0 && (
               <div className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
                 {request.expenses.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between">
-                    <span className="text-foreground-muted">
-                      {e.vendorName} — {e.description}
-                    </span>
-                    <span className="font-medium">{formatNaira(e.finalAmountMinor ?? e.approvedAmountMinor ?? e.estimateMinor ?? 0)}</span>
+                  <div key={e.id}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-foreground-muted">
+                        {e.vendorName} — {e.description}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {e.approvalStatus !== "NOT_REQUIRED" && (
+                          <Badge tone={e.approvalStatus === "APPROVED" ? "success" : e.approvalStatus === "REJECTED" ? "danger" : "warning"}>
+                            {e.approvalStatus === "INFO_REQUESTED" ? "Owner has a question" : `Owner: ${e.approvalStatus.toLowerCase()}`}
+                          </Badge>
+                        )}
+                        <span className="font-medium">{formatNaira(e.finalAmountMinor ?? e.approvedAmountMinor ?? e.estimateMinor ?? 0)}</span>
+                      </span>
+                    </div>
+                    {e.comments.map((c) => (
+                      <p key={c.id} className="mt-1 text-xs text-foreground-muted">
+                        {c.role === "OWNER" ? "Owner" : c.author.name}: {c.body}
+                      </p>
+                    ))}
+                    {e.approvalStatus === "INFO_REQUESTED" && <ApprovalReplyForm expenseId={e.id} />}
                   </div>
                 ))}
               </div>
