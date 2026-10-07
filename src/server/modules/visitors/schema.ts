@@ -1,11 +1,20 @@
 import { VisitorPassType } from "@prisma/client";
 import { z } from "zod";
 
-// Not yet estate-configurable (see report) — a flat 7-day cap is the
-// "reasonable secure minimum" so a resident can't create an
-// effectively-indefinite pass, without building settings UI this phase
-// doesn't need yet.
-const MAX_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Not yet estate-configurable — a per-type cap is the "reasonable secure
+// minimum" so a resident can't create an effectively-indefinite pass.
+// Ordinary passes are short-lived; standing access for household staff and
+// recurring contractors is allowed to run longer, but still expires and must
+// be renewed deliberately.
+export const MAX_VALIDITY_DAYS: Record<VisitorPassType, number> = {
+  VISITOR: 7,
+  VEHICLE: 7,
+  DELIVERY: 7,
+  CONTRACTOR: 30,
+  DOMESTIC_STAFF: 90,
+};
 
 export const createVisitorPassSchema = z
   .object({
@@ -21,8 +30,8 @@ export const createVisitorPassSchema = z
     message: "Expiration must be after the start time",
     path: ["expiresAt"],
   })
-  .refine((data) => data.expiresAt.getTime() - data.startTime.getTime() <= MAX_VALIDITY_MS, {
-    message: "Passes can be valid for up to 7 days at a time",
+  .refine((data) => data.expiresAt.getTime() - data.startTime.getTime() <= MAX_VALIDITY_DAYS[data.passType] * DAY_MS, {
+    message: "That pass type can't be valid for that long — shorten the expiry",
     path: ["expiresAt"],
   });
 export type CreateVisitorPassInput = z.infer<typeof createVisitorPassSchema>;

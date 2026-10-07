@@ -23,6 +23,8 @@ const PASS_TYPE_LABEL: Record<string, string> = {
   VISITOR: "Visitor",
   VEHICLE: "Vehicle",
   DELIVERY: "Delivery",
+  CONTRACTOR: "Contractor",
+  DOMESTIC_STAFF: "Household staff",
 };
 
 const RESIDENT_STATUS_TONE: Record<ResidentFilter, "success" | "info" | "danger" | "warning" | "neutral"> = {

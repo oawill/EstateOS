@@ -387,3 +387,14 @@ export async function denyEntry(estateId: string, securityUserId: string, passId
     after: { reason: reason || null },
   });
 }
+
+/** Full gate log for a lookback window — every check-in/out, including override entries, newest first. Estate-scoped; powers the Security "Access History" page. */
+export async function listAccessHistory(estateId: string, sinceDays: number, limit = 200) {
+  const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+  return prisma.gateEntry.findMany({
+    where: { estateId, checkInAt: { gte: since } },
+    include: { pass: { include: { resident: { include: { occupancies: { where: { isCurrent: true }, include: { unit: { include: { property: true } } } } } } } } },
+    orderBy: { checkInAt: "desc" },
+    take: limit,
+  });
+}

@@ -56,6 +56,8 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
     { href: "gate", label: "Gate" },
     { href: "gate/inside", label: "Currently Inside" },
     { href: "gate/incidents", label: "Incidents" },
+    { href: "gate/history", label: "History" },
+    { href: "gate/handover", label: "Handover" },
   ],
   [Role.RESIDENT]: [
     { href: "dashboard", label: "Home" },

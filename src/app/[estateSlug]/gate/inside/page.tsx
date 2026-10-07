@@ -40,7 +40,7 @@ export default async function CurrentlyInsidePage({ params }: { params: Promise<
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge tone="info">{entry.pass.passType}</Badge>
+                  <Badge tone="info">{entry.pass.passType.replaceAll("_", " ")}</Badge>
                   <form action={checkOutAction.bind(null, estateSlug, entry.id)}>
                     <Button type="submit" variant="secondary">
                       Record Exit

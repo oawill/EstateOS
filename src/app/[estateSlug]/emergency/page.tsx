@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card } from "@/components/shared/ui";
 import { guardPage } from "@/server/auth/pageGuard";
 import { requireEstatePermission } from "@/server/auth/guards";
@@ -54,6 +55,13 @@ export default async function EmergencyPage({ params }: { params: Promise<{ esta
           </a>
         </Card>
       )}
+
+      <Link href={`/${estateSlug}/emergency/report`}>
+        <Card className="transition-shadow hover:shadow-md">
+          <p className="text-sm font-medium">Report a non-urgent security concern</p>
+          <p className="mt-0.5 text-xs text-foreground-muted">Suspicious activity, noise, damage — sent to estate security.</p>
+        </Card>
+      </Link>
 
       <p className="text-xs text-foreground-muted">
         This estate does not yet have a monitored digital SOS/alert system — reaching security or the estate office

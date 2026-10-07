@@ -10,7 +10,18 @@ const PASS_TYPES = [
   { value: "VISITOR", label: "Visitor" },
   { value: "VEHICLE", label: "Vehicle" },
   { value: "DELIVERY", label: "Delivery / Service Provider" },
+  { value: "CONTRACTOR", label: "Contractor / Workman (up to 30 days)" },
+  { value: "DOMESTIC_STAFF", label: "Household staff (up to 90 days)" },
 ] as const;
+
+// Standing access is expected to run longer than a one-off visit.
+const DEFAULT_VALIDITY_HOURS: Record<(typeof PASS_TYPES)[number]["value"], number> = {
+  VISITOR: 24,
+  VEHICLE: 24,
+  DELIVERY: 24,
+  CONTRACTOR: 24 * 7,
+  DOMESTIC_STAFF: 24 * 30,
+};
 
 function defaultDateTime(hoursFromNow: number): string {
   const date = new Date(Date.now() + hoursFromNow * 60 * 60 * 1000);
@@ -31,8 +42,10 @@ export function NewVisitorForm({
   const [state, formAction, pending] = useActionState(action, initialState);
   const [passType, setPassType] = useState<(typeof PASS_TYPES)[number]["value"]>("VISITOR");
 
-  const nameLabel = passType === "DELIVERY" ? "Provider / company name" : "Visitor name";
-  const namePlaceholder = passType === "DELIVERY" ? "e.g. Jumia, DHL, plumber" : "Tunde Adeyemi";
+  const nameLabel =
+    passType === "DELIVERY" ? "Provider / company name" : passType === "DOMESTIC_STAFF" ? "Staff member's name" : passType === "CONTRACTOR" ? "Contractor / company name" : "Visitor name";
+  const namePlaceholder =
+    passType === "DELIVERY" ? "e.g. Jumia, DHL, plumber" : passType === "DOMESTIC_STAFF" ? "e.g. Mrs. Okoro (housekeeper)" : passType === "CONTRACTOR" ? "e.g. ABC Electricals" : "Tunde Adeyemi";
 
   return (
     <form action={formAction} className="space-y-4">
@@ -88,7 +101,7 @@ export function NewVisitorForm({
         </div>
         <div>
           <Label htmlFor="expiresAt">Expires</Label>
-          <Input id="expiresAt" name="expiresAt" type="datetime-local" required defaultValue={defaultDateTime(24)} />
+          <Input key={passType} id="expiresAt" name="expiresAt" type="datetime-local" required defaultValue={defaultDateTime(DEFAULT_VALIDITY_HOURS[passType])} />
         </div>
       </div>
       <div>

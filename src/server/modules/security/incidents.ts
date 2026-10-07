@@ -72,3 +72,27 @@ export async function transitionIncident(estateId: string, actorUserId: string, 
 
   return updated;
 }
+
+/** Categories a resident may file themselves — never the gate-operational ones (unauthorized access attempt, fire/medical, which must go through the emergency phone line). */
+export const RESIDENT_REPORTABLE_CATEGORIES = [
+  "SECURITY_CONCERN",
+  "SUSPICIOUS_ACTIVITY",
+  "NOISE_DISTURBANCE",
+  "PROPERTY_DAMAGE",
+  "VEHICLE_INCIDENT",
+  "OTHER",
+] as const satisfies readonly SecurityIncidentCategory[];
+
+/** A resident flags a concern; it lands in the same incident queue Security and the estate admin already work from (one authoritative record), never a parallel complaints list. */
+export async function createResidentConcern(
+  estateId: string,
+  actorUserId: string,
+  input: { category: (typeof RESIDENT_REPORTABLE_CATEGORIES)[number]; description: string; location?: string },
+) {
+  return createIncident(estateId, actorUserId, {
+    category: input.category,
+    severity: "MEDIUM",
+    description: `[Reported by a resident] ${input.description}`,
+    location: input.location,
+  });
+}

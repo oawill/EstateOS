@@ -339,6 +339,8 @@ enum VisitorPassType {
   VISITOR
   VEHICLE
   DELIVERY
+  DOMESTIC_STAFF
+  CONTRACTOR
 }
 
 // ---------------------------------------------------------------------------
@@ -446,6 +448,7 @@ model User {
   shortletOperatorProfile    ShortletOperator?
   shortletGuestProfile       ShortletGuest?
   reportedSecurityIncidents  SecurityIncident[]
+  shiftHandovers             ShiftHandover[]
   advertiserProfile          Advertiser?
   adHides                    AdHide[]
   adReports                  AdReport[]
@@ -967,6 +970,7 @@ model Estate {
   billingDisputes        BillingDispute[]
   onboarding             EstateOnboarding?
   advertisingPolicy      EstateAdvertisingPolicy?
+  shiftHandovers         ShiftHandover[]
   sequences              EstateSequence[]
   visitorPasses          VisitorPass[]
   gateEntries            GateEntry[]
@@ -3987,4 +3991,19 @@ model SecurityIncident {
 
   @@index([estateId])
   @@index([status])
+}
+
+/// A security officer's end-of-shift note for whoever takes the gate next.
+model ShiftHandover {
+  id           String   @id @default(cuid())
+  estateId     String
+  authorUserId String
+  gate         String?
+  notes        String
+  createdAt    DateTime @default(now())
+
+  estate Estate @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorUserId], references: [id])
+
+  @@index([estateId, createdAt])
 }
