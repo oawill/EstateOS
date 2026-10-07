@@ -972,6 +972,8 @@ model Estate {
   onboarding             EstateOnboarding?
   advertisingPolicy      EstateAdvertisingPolicy?
   shiftHandovers         ShiftHandover[]
+  amenities              Amenity[]
+  amenityBookings        AmenityBooking[]
   parcels                Parcel[]
   sequences              EstateSequence[]
   visitorPasses          VisitorPass[]
@@ -1148,6 +1150,7 @@ model Resident {
   occupancies            Occupancy[]
   vehicles               Vehicle[]
   invoices               Invoice[]
+  amenityBookings        AmenityBooking[]
   parcels                Parcel[]
   accountCredits         AccountCredit[]
   billingDisputes        BillingDispute[]
@@ -4038,4 +4041,53 @@ model Parcel {
 
   @@index([estateId, status])
   @@index([residentId])
+}
+
+enum AmenityBookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+/// A shared estate facility residents can reserve (clubhouse, tennis court…).
+/// Opening hours are wall-clock times in the estate's own timezone. The fee is
+/// informational only — nothing is charged through NidraQ for a booking.
+model Amenity {
+  id              String   @id @default(cuid())
+  estateId        String
+  name            String
+  description     String?
+  openTime        String   @default("08:00")
+  closeTime       String   @default("20:00")
+  slotMinutes     Int      @default(60)
+  maxSlots        Int      @default(3)
+  capacity        Int      @default(1)
+  feeNote         String?
+  requiresBooking Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  estate   Estate           @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  bookings AmenityBooking[]
+
+  @@index([estateId])
+}
+
+model AmenityBooking {
+  id          String               @id @default(cuid())
+  estateId    String
+  amenityId   String
+  residentId  String
+  startsAt    DateTime
+  endsAt      DateTime
+  status      AmenityBookingStatus @default(CONFIRMED)
+  cancelledAt DateTime?
+  createdAt   DateTime             @default(now())
+
+  estate   Estate   @relation(fields: [estateId], references: [id], onDelete: Cascade)
+  amenity  Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+  resident Resident @relation(fields: [residentId], references: [id], onDelete: Cascade)
+
+  @@index([amenityId, startsAt])
+  @@index([residentId])
+  @@index([estateId, startsAt])
 }

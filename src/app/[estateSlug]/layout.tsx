@@ -32,6 +32,7 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
     { href: "facility", label: "Maintenance", group: "Operations" },
     { href: "utilities", label: "Utilities", group: "Operations" },
     { href: "vendors", label: "Vendors", group: "Operations" },
+    { href: "amenities/manage", label: "Amenities", group: "Operations" },
     { href: "announcements", label: "Announcements", group: "Community" },
     // Estate-admin staff accounts typically aren't Residents, so they land
     // on Moderation (which needs no resident profile) rather than the Feed
@@ -64,6 +65,7 @@ const NAV_BY_ROLE: Record<Role, EstateNavItem[]> = {
     { href: "dashboard", label: "Home" },
     { href: "visitors", label: "Visitors" },
     { href: "packages", label: "Packages" },
+    { href: "amenities", label: "Amenities" },
     { href: "maintenance", label: "Maintenance" },
     { href: "community", label: "Community" },
     { href: "my/utilities", label: "Utilities" },

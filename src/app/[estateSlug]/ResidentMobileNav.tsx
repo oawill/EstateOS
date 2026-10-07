@@ -14,6 +14,7 @@ const PRIMARY_ITEMS = [
 const MORE_ITEMS = [
   { href: "community", label: "Community" },
   { href: "packages", label: "My Packages" },
+  { href: "amenities", label: "Amenities" },
   { href: "marketplace", label: "Marketplace" },
   { href: "my/utilities", label: "Utilities" },
   { href: "vehicles", label: "My Vehicles" },
